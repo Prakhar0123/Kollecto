@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nature Survival</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        canvas { display: block; }
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            pointer-events: none;
+            z-index: 10;
+        }
+        h1 { margin: 0 0 5px 0; font-size: 32px; color: #f1c40f; }
+        p { margin: 0 0 10px 0; font-size: 18px; }
+        #scoreDisplay { font-size: 24px; font-weight: bold; color: #2ecc71; margin: 0; }
+    </style>
+</head>
+<body>
+
+    <div id="ui">
+        <h1>Nature Survival</h1>
+        <p>Use <b>Left/Right Arrows</b> to dodge the bees!</p>
+        <div id="scoreDisplay">Score: 0</div>
+    </div>
+    <canvas id="gameCanvas"></canvas>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const scoreDisplay = document.getElementById('scoreDisplay');
+
+let width, height;
+let frame = 0;
+let lane = 0; 
+let targetX = 0;
+let currentX = 0;
+let speed = 8;
+let timeHue = 200;
+
+let score = 0;
+let gameOver = false;
+let bees = [];
+
+function resize() {
+    width = canvas.width = window.innerWidth;
+    height = canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resize);
+resize();
+
+window.addEventListener('keydown', (e) => {
+    if (gameOver && e.key === 'Enter') location.reload(); 
+    if (e.key === 'ArrowLeft' && lane > -1) lane--;
+    if (e.key === 'ArrowRight' && lane < 1) lane++;
+});
+
+
+const butterflies = [];
+for(let i = 0; i < 8; i++) {
+    butterflies.push({
+        x: Math.random() * 1600 - 800, 
+        z: Math.random(),
+        offset: Math.random() * 100,
+        color: `hsl(${Math.random() * 60 + 10}, 100%, 70%)` 
+    });
+}
+
+const boy = {
+    x: 0, y: 0, width: 30, height: 60,
+    update() {
+        targetX = lane * 150;
+        currentX += (targetX - currentX) * 0.15;
+    },
+    draw() {
+        const cx = width / 2 + currentX;
+        const cy = height - 150;
+        const runCycle = frame * 0.2;
+        const bob = Math.abs(Math.cos(runCycle)) * 10; 
+        const limbSwing = Math.sin(runCycle) * 15;   
+
+        ctx.save();
+        ctx.translate(cx, cy - bob); 
+        ctx.lineWidth = 8; ctx.lineCap = 'round'; ctx.strokeStyle = '#2c1e14';
+        
+        ctx.beginPath(); ctx.moveTo(-8, 0); ctx.lineTo(-12, 10 + limbSwing); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(8, 0); ctx.lineTo(12, 10 - limbSwing); ctx.stroke();
+        
+        ctx.fillStyle = '#3498db'; ctx.fillRect(-15, -40, 30, 35);
+       
+        ctx.strokeStyle = '#ffdbac'; ctx.lineWidth = 6;
+        ctx.beginPath(); ctx.moveTo(15, -35); ctx.lineTo(20, -15 + limbSwing); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(-15, -35); ctx.lineTo(-20, -15 - limbSwing); ctx.stroke();
+        
+        ctx.fillStyle = '#ffdbac'; ctx.beginPath(); ctx.arc(0, -52, 14, 0, Math.PI * 2); ctx.fill();
+        
+        ctx.fillStyle = '#4b2c20'; ctx.beginPath(); ctx.arc(0, -56, 15, Math.PI, 0); ctx.fill();
+        ctx.fillRect(-15, -57, 30, 10); 
+        
+        ctx.restore();
+    }
+};
+
+const floraParticles = [];
+for(let i = 0; i < 120; i++) { 
+    floraParticles.push({
+        x: Math.random() * 3000 - 1500, 
+        z: Math.random(), 
+        type: Math.floor(Math.random() * 4), 
+        seed: Math.random() * 10, 
+        color: `hsl(${90 + Math.random() * 40}, 60%, ${30 + Math.random() * 20}%)`,
+        flowerColor: `hsl(${Math.random() * 360}, 80%, 70%)`
+    });
+}
+
+function drawBackground() {
+    timeHue += 0.05; 
+    const skyGrad = ctx.createLinearGradient(0, 0, 0, height);
+    skyGrad.addColorStop(0, `hsl(${timeHue}, 70%, 40%)`);
+    skyGrad.addColorStop(1, `hsl(${timeHue + 40}, 60%, 70%)`);
+    ctx.fillStyle = skyGrad;
+    ctx.fillRect(0, 0, width, height);
+
+    const horizon = height * 0.5;
+    const meadowHue = 120 + Math.sin(timeHue * 0.02) * 35; 
+    const meadowSat = 45 + Math.sin(timeHue * 0.03) * 10;  
+    const meadowLight = 28 + Math.cos(timeHue * 0.02) * 8; 
+    
+    ctx.fillStyle = `hsl(${meadowHue + 10}, ${meadowSat - 10}%, ${meadowLight - 10}%)`;
+    ctx.beginPath();
+    ctx.moveTo(0, horizon);
+    ctx.quadraticCurveTo(width * 0.25, horizon - 40, width * 0.5, horizon);
+    ctx.quadraticCurveTo(width * 0.75, horizon - 60, width, horizon);
+    ctx.fill();
+
+    ctx.fillStyle = `hsl(${meadowHue}, ${meadowSat}%, ${meadowLight}%)`;
+    ctx.fillRect(0, horizon, width, height - horizon);
+
+    drawFlora(horizon);
+}
+
+function drawFlora(horizon) {
+    const wind = Math.sin(frame * 0.02) * 10 + Math.sin(frame * 0.05) * 5;
+    floraParticles.sort((a, b) => b.z - a.z);
+
+    floraParticles.forEach(p => {
+        p.z -= speed / 3000; 
+        if (p.z <= 0) { p.z = 1; p.x = Math.random() * 3000 - 1500; }
+
+        const perspective = 1 / (p.z + 0.1);
+        const px = width / 2 + (p.x * perspective);
+        const py = horizon + ( (1 - p.z) * (height - horizon) );
+        const size = (1 - p.z) * 80;
+        
+        const sway = (Math.sin(frame * 0.05 + p.seed) * (size * 0.2)) + (wind * perspective * 0.2);
+
+        if (px > -100 && px < width + 100) {
+            ctx.fillStyle = p.color;
+            if (p.type === 0) { 
+                ctx.beginPath();
+                ctx.moveTo(px, py);
+                ctx.quadraticCurveTo(px + sway, py - size/1.5, px + sway * 1.5, py - size);
+                ctx.strokeStyle = p.color;
+                ctx.lineWidth = size / 10;
+                ctx.stroke();
+            } 
+            else if (p.type === 1) { 
+                ctx.fillStyle = p.color;
+                ctx.fillRect(px - 1, py - size/3, 2, size/3); 
+                ctx.fillStyle = p.flowerColor;
+                for(let j=0; j<3; j++) {
+                    ctx.beginPath();
+                    ctx.arc(px + Math.cos(j*2) * (size/8) + (sway/2), (py - size/3) + Math.sin(j*2) * (size/8), size/8, 0, Math.PI*2);
+                    ctx.fill();
+                }
+            }
+            else if (p.type === 2) { 
+                ctx.fillStyle = `rgba(0,0,0,0.15)`; 
+                ctx.beginPath();
+                ctx.ellipse(px, py, size/4, size/10, 0, 0, Math.PI*2);
+                ctx.fill();
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(px, py - size/10, size/6, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+    });
+}
+
+function drawButterflies() {
+    const horizon = height * 0.5;
+    butterflies.sort((a, b) => b.z - a.z);
+
+    butterflies.forEach(b => {
+        b.z -= speed / 2500;
+        if (b.z <= 0) { b.z = 1; b.x = Math.random() * 1600 - 800; }
+
+        const perspective = 1 / (b.z + 0.1);
+        const bSize = (1 - b.z) * 20; 
+        const flightX = Math.sin(frame * 0.1 + b.offset) * 100;
+        const flightY = Math.cos(frame * 0.08 + b.offset) * 40;
+        
+        const px = width / 2 + (b.x + flightX) * perspective;
+        const py = (horizon + (1 - b.z) * (height - horizon)) - 50 + flightY;
+
+        if (px > -50 && px < width + 50 && bSize > 1) {
+            ctx.fillStyle = b.color;
+            const wingGap = Math.abs(Math.sin(frame * 0.3)) * bSize;
+            ctx.beginPath();
+            ctx.ellipse(px - wingGap/2, py, wingGap/2, bSize/2, 0, 0, Math.PI * 2);
+            ctx.ellipse(px + wingGap/2, py, wingGap/2, bSize/2, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#000';
+            ctx.fillRect(px - 1, py - bSize/4, 2, bSize/2);
+        }
+    });
+}
+
+function drawPath() {
+    const horizon = height * 0.5;
+    const pathWidthBase = 400;
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(width / 2 - 50, horizon);
+    ctx.lineTo(width / 2 + 50, horizon);
+    ctx.lineTo(width / 2 + pathWidthBase, height);
+    ctx.lineTo(width / 2 - pathWidthBase, height);
+    ctx.closePath();
+    ctx.fillStyle = '#4a3728';
+    ctx.fill();
+
+    for (let i = 0; i < 60; i++) {
+        let z = ( (frame * speed + i * 40) % 1000) / 1000;
+        let py = horizon + z * (height - horizon);
+        let pW = 100 + z * (pathWidthBase * 2 - 100);
+        let px = (width / 2 - pW / 2) + ((Math.sin(i) * 0.5 + 0.5) * pW);
+        ctx.fillStyle = `rgba(155, 89, 182, ${z})`;
+        ctx.beginPath(); ctx.arc(px, py, z * 8, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = `rgba(241, 196, 15, ${z})`;
+        ctx.beginPath(); ctx.arc(px, py, z * 2, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+}
+
+function drawBees() {
+    const horizon = height * 0.5;
+    const playerCX = width / 2 + currentX;
+    const playerCY = height - 150;
+
+    if (frame % 40 === 0) {
+        bees.push({
+            lane: Math.floor(Math.random() * 3) - 1, 
+            z: 0.05, // Start near horizon
+            passed: false,
+            offset: Math.random() * 100
+        });
+    }
+
+    for (let i = bees.length - 1; i >= 0; i--) {
+        let bee = bees[i];
+        bee.z += speed / 700; 
+        if (bee.z > 1.2) {
+            bees.splice(i, 1);
+            continue;
+        }
+
+        let px = width / 2 + (bee.lane * 150 * bee.z);
+        let py = horizon + bee.z * (height - horizon);
+        let bSize = 5 + bee.z * 40; 
+        if (!bee.passed) {
+           
+            if (py > playerCY - 50 && py < playerCY + 30) { 
+                
+                if (Math.abs(px - playerCX) < 40) { 
+                    gameOver = true;
+                }
+            }
+            if (py >= playerCY + 30) {
+                bee.passed = true;
+                score += 10;
+                scoreDisplay.innerText = `Score: ${score}`;
+            }
+        }
+        ctx.save();
+        ctx.translate(px, py - (bSize * 1.5)); 
+      
+        let wobble = Math.sin(frame * 0.2 + bee.offset) * (bee.z * 15);
+        ctx.translate(wobble, Math.cos(frame * 0.3) * 5); 
+
+        ctx.fillStyle = '#f1c40f';
+        ctx.beginPath(); ctx.ellipse(0, 0, bSize, bSize * 0.8, 0, 0, Math.PI * 2); ctx.fill();
+
+        ctx.fillStyle = '#000';
+        ctx.fillRect(-bSize * 0.4, -bSize * 0.8, bSize * 0.25, bSize * 1.6);
+        ctx.fillRect(bSize * 0.15, -bSize * 0.8, bSize * 0.25, bSize * 1.6);
+
+        ctx.fillStyle = '#e74c3c';
+        ctx.beginPath(); ctx.arc(-bSize*0.3, bSize*0.2, bSize*0.2, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(bSize*0.3, bSize*0.2, bSize*0.2, 0, Math.PI*2); ctx.fill();
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+        let wingFlap = Math.abs(Math.sin(frame * 1.5)) * bSize;
+        ctx.beginPath(); ctx.ellipse(-bSize*0.8, -bSize*0.5, bSize*0.6, wingFlap, Math.PI/6, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(bSize*0.8, -bSize*0.5, bSize*0.6, wingFlap, -Math.PI/6, 0, Math.PI*2); ctx.fill();
+
+        ctx.restore();
+    }
+}
+
+function animate() {
+    if (gameOver) {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        ctx.fillRect(0, 0, width, height);
+        
+        ctx.fillStyle = '#e74c3c';
+        ctx.font = 'bold 60px "Segoe UI", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('BZZZH! GAME OVER', width / 2, height / 2 - 40);
+        
+        ctx.fillStyle = 'white';
+        ctx.font = '24px "Segoe UI", sans-serif';
+        ctx.fillText(`Final Score: ${score}`, width / 2, height / 2 + 20);
+        ctx.fillText('Press [ENTER] to Restart', width / 2, height / 2 + 70);
+        return; 
+    }
+
+    ctx.clearRect(0, 0, width, height);
+    frame++;
+    
+    drawBackground(); 
+    drawPath();       
+    
+
+    boy.update();
+    boy.draw();       
+    
+    drawBees();        
+    drawButterflies();
+    
+    requestAnimationFrame(animate);
+}
+
+animate();
+</script>
+</body>
+</html>
