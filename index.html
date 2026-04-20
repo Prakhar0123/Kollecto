@@ -2,10 +2,17 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Nature Survival</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #000; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+            background: #000; 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            /* Prevents pull-to-refresh and gestures on mobile */
+            touch-action: none; 
+        }
         canvas { display: block; }
         #ui {
             position: absolute;
@@ -16,8 +23,8 @@
             pointer-events: none;
             z-index: 10;
         }
-        h1 { margin: 0 0 5px 0; font-size: 32px; color: #f1c40f; }
-        p { margin: 0 0 10px 0; font-size: 18px; }
+        h1 { margin: 0 0 5px 0; font-size: clamp(24px, 5vw, 32px); color: #f1c40f; }
+        p { margin: 0 0 10px 0; font-size: clamp(14px, 4vw, 18px); }
         #scoreDisplay { font-size: 24px; font-weight: bold; color: #2ecc71; margin: 0; }
     </style>
 </head>
@@ -25,7 +32,7 @@
 
     <div id="ui">
         <h1>Nature Survival</h1>
-        <p>Use <b>Left/Right Arrows</b> to dodge the bees!</p>
+        <p>Dodge the bees! <br><b>Arrows</b> or <b>Tap Sides</b></p>
         <div id="scoreDisplay">Score: 0</div>
     </div>
     <canvas id="gameCanvas"></canvas>
@@ -43,6 +50,7 @@ let currentX = 0;
 let speed = 8;
 let timeHue = 200;
 
+// Game State Variables
 let score = 0;
 let gameOver = false;
 let bees = [];
@@ -54,13 +62,30 @@ function resize() {
 window.addEventListener('resize', resize);
 resize();
 
+// --- KEYBOARD CONTROLS ---
 window.addEventListener('keydown', (e) => {
-    if (gameOver && e.key === 'Enter') location.reload(); 
+    if (gameOver && e.key === 'Enter') location.reload();
     if (e.key === 'ArrowLeft' && lane > -1) lane--;
     if (e.key === 'ArrowRight' && lane < 1) lane++;
 });
 
+// --- TOUCH CONTROLS ---
+window.addEventListener('touchstart', (e) => {
+    if (gameOver) {
+        location.reload(); // Restart on tap if game over
+        return;
+    }
+    
+    const touchX = e.touches[0].clientX;
+    // Divide screen in half
+    if (touchX < width / 2) {
+        if (lane > -1) lane--;
+    } else {
+        if (lane < 1) lane++;
+    }
+}, { passive: false });
 
+// --- BUTTERFLY DATA ---
 const butterflies = [];
 for(let i = 0; i < 8; i++) {
     butterflies.push({
@@ -75,6 +100,9 @@ const boy = {
     x: 0, y: 0, width: 30, height: 60,
     update() {
         targetX = lane * 150;
+        // Adjust lane width for smaller screens
+        if (width < 600) targetX = lane * (width * 0.25);
+        
         currentX += (targetX - currentX) * 0.15;
     },
     draw() {
@@ -88,17 +116,22 @@ const boy = {
         ctx.translate(cx, cy - bob); 
         ctx.lineWidth = 8; ctx.lineCap = 'round'; ctx.strokeStyle = '#2c1e14';
         
+        // Legs
         ctx.beginPath(); ctx.moveTo(-8, 0); ctx.lineTo(-12, 10 + limbSwing); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(8, 0); ctx.lineTo(12, 10 - limbSwing); ctx.stroke();
         
+        // Body
         ctx.fillStyle = '#3498db'; ctx.fillRect(-15, -40, 30, 35);
-       
+        
+        // Arms
         ctx.strokeStyle = '#ffdbac'; ctx.lineWidth = 6;
         ctx.beginPath(); ctx.moveTo(15, -35); ctx.lineTo(20, -15 + limbSwing); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(-15, -35); ctx.lineTo(-20, -15 - limbSwing); ctx.stroke();
         
+        // Head
         ctx.fillStyle = '#ffdbac'; ctx.beginPath(); ctx.arc(0, -52, 14, 0, Math.PI * 2); ctx.fill();
         
+        // Hair
         ctx.fillStyle = '#4b2c20'; ctx.beginPath(); ctx.arc(0, -56, 15, Math.PI, 0); ctx.fill();
         ctx.fillRect(-15, -57, 30, 10); 
         
@@ -224,7 +257,7 @@ function drawButterflies() {
 
 function drawPath() {
     const horizon = height * 0.5;
-    const pathWidthBase = 400;
+    const pathWidthBase = width < 600 ? width * 0.45 : 400;
     ctx.save();
     ctx.beginPath();
     ctx.moveTo(width / 2 - 50, horizon);
@@ -252,11 +285,12 @@ function drawBees() {
     const horizon = height * 0.5;
     const playerCX = width / 2 + currentX;
     const playerCY = height - 150;
+    const laneSpacing = width < 600 ? width * 0.25 : 150;
 
     if (frame % 40 === 0) {
         bees.push({
-            lane: Math.floor(Math.random() * 3) - 1, 
-            z: 0.05, // Start near horizon
+            lane: Math.floor(Math.random() * 3) - 1,
+            z: 0.05,
             passed: false,
             offset: Math.random() * 100
         });
@@ -264,51 +298,48 @@ function drawBees() {
 
     for (let i = bees.length - 1; i >= 0; i--) {
         let bee = bees[i];
-        bee.z += speed / 700; 
+        bee.z += speed / 700;
+
         if (bee.z > 1.2) {
             bees.splice(i, 1);
             continue;
         }
 
-        let px = width / 2 + (bee.lane * 150 * bee.z);
+        let px = width / 2 + (bee.lane * laneSpacing * bee.z);
         let py = horizon + bee.z * (height - horizon);
         let bSize = 5 + bee.z * 40; 
+
         if (!bee.passed) {
-           
             if (py > playerCY - 50 && py < playerCY + 30) { 
-                
                 if (Math.abs(px - playerCX) < 40) { 
                     gameOver = true;
                 }
             }
+            
             if (py >= playerCY + 30) {
                 bee.passed = true;
                 score += 10;
                 scoreDisplay.innerText = `Score: ${score}`;
             }
         }
+
         ctx.save();
         ctx.translate(px, py - (bSize * 1.5)); 
-      
         let wobble = Math.sin(frame * 0.2 + bee.offset) * (bee.z * 15);
         ctx.translate(wobble, Math.cos(frame * 0.3) * 5); 
 
         ctx.fillStyle = '#f1c40f';
         ctx.beginPath(); ctx.ellipse(0, 0, bSize, bSize * 0.8, 0, 0, Math.PI * 2); ctx.fill();
-
         ctx.fillStyle = '#000';
         ctx.fillRect(-bSize * 0.4, -bSize * 0.8, bSize * 0.25, bSize * 1.6);
         ctx.fillRect(bSize * 0.15, -bSize * 0.8, bSize * 0.25, bSize * 1.6);
-
         ctx.fillStyle = '#e74c3c';
         ctx.beginPath(); ctx.arc(-bSize*0.3, bSize*0.2, bSize*0.2, 0, Math.PI*2); ctx.fill();
         ctx.beginPath(); ctx.arc(bSize*0.3, bSize*0.2, bSize*0.2, 0, Math.PI*2); ctx.fill();
-
         ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
         let wingFlap = Math.abs(Math.sin(frame * 1.5)) * bSize;
         ctx.beginPath(); ctx.ellipse(-bSize*0.8, -bSize*0.5, bSize*0.6, wingFlap, Math.PI/6, 0, Math.PI*2); ctx.fill();
         ctx.beginPath(); ctx.ellipse(bSize*0.8, -bSize*0.5, bSize*0.6, wingFlap, -Math.PI/6, 0, Math.PI*2); ctx.fill();
-
         ctx.restore();
     }
 }
@@ -319,15 +350,15 @@ function animate() {
         ctx.fillRect(0, 0, width, height);
         
         ctx.fillStyle = '#e74c3c';
-        ctx.font = 'bold 60px "Segoe UI", sans-serif';
+        ctx.font = 'bold 40px "Segoe UI", sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText('BZZZH! GAME OVER', width / 2, height / 2 - 40);
         
         ctx.fillStyle = 'white';
-        ctx.font = '24px "Segoe UI", sans-serif';
+        ctx.font = '20px "Segoe UI", sans-serif';
         ctx.fillText(`Final Score: ${score}`, width / 2, height / 2 + 20);
-        ctx.fillText('Press [ENTER] to Restart', width / 2, height / 2 + 70);
+        ctx.fillText('Tap or Press Enter to Restart', width / 2, height / 2 + 70);
         return; 
     }
 
@@ -337,12 +368,11 @@ function animate() {
     drawBackground(); 
     drawPath();       
     
-
     boy.update();
     boy.draw();       
     
     drawBees();        
-    drawButterflies();
+    drawButterflies(); 
     
     requestAnimationFrame(animate);
 }
