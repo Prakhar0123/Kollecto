@@ -3,7 +3,9 @@ This game is fully cross‑browser compatible & built entirely with HTML, CSS, &
 New updates to be rolled out very soon.
 
 
+
 You can connect with me on:
+
 Gmail- checkoutprakhar@gmail.com
 
 Linkedin- https://www.linkedin.com/in/prakhar-kushwaha-ba0a34276/
