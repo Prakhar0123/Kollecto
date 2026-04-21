@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta id="viewport" name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Nature Survival</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏃</text></svg>">
+
     <style>
         body { 
             margin: 0; 
@@ -67,9 +67,9 @@
     <div id="desktopOverlay">
         <div id="popupContent">
             <h3>Mobile Detected</h3>
-            <p>Switch to Desktop mode for compatibility</p>
+            <p>Would you like to switch to Desktop View for a wider perspective?</p>
             <button id="btnDesktop" class="popup-btn">Simulate Desktop Mode</button>
-            
+            <button id="btnStay" class="popup-btn">Stay on Mobile</button>
         </div>
     </div>
 
@@ -98,7 +98,7 @@ let timeHue = 200;
 let score = 0;
 let gameOver = false;
 let bees = [];
-let fruits = [];
+let fruits = []; // NEW: Array for fruits
 
 function checkDevice() {
     if (window.innerWidth < 768) {
@@ -327,12 +327,14 @@ function drawPath() {
     ctx.restore();
 }
 
+// --- FRUIT LOGIC ---
 function drawFruits() {
     const horizon = height * 0.5;
     const playerCX = width / 2 + currentX;
     const playerCY = height - 150;
     const laneSpacing = width < 600 ? width * 0.25 : 150;
 
+    // Spawn fruit every 90 frames
     if (frame % 90 === 0) {
         fruits.push({
             lane: Math.floor(Math.random() * 3) - 1,
@@ -353,6 +355,8 @@ function drawFruits() {
         let px = width / 2 + (f.lane * laneSpacing * f.z);
         let py = horizon + f.z * (height - horizon);
         let fSize = 5 + f.z * 35;
+
+        // Collision Check (Fruit)
         if (py > playerCY - 50 && py < playerCY + 30) {
             if (Math.abs(px - playerCX) < 45) {
                 score += 50; // Bonus points!
@@ -361,6 +365,8 @@ function drawFruits() {
                 continue;
             }
         }
+
+        // Draw Fruit
         ctx.save();
         ctx.translate(px, py - fSize);
         ctx.fillStyle = f.type === 'apple' ? '#e74c3c' : '#f39c12';
@@ -459,7 +465,7 @@ function animate() {
     drawPath();        
     boy.update();
     boy.draw();        
-    drawFruits();
+    drawFruits(); // NEW: Call fruit drawing function
     drawBees();        
     drawButterflies(); 
     requestAnimationFrame(animate);
