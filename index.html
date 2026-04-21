@@ -26,12 +26,11 @@
         p { margin: 0 0 10px 0; font-size: clamp(14px, 4vw, 18px); }
         #scoreDisplay { font-size: 24px; font-weight: bold; color: #2ecc71; margin: 0; }
 
-        /* --- DESKTOP POPUP STYLES --- */
         #desktopOverlay {
             position: fixed;
             top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.85);
-            display: none; /* Hidden by default */
+            display: none; 
             justify-content: center;
             align-items: center;
             z-index: 100;
@@ -75,7 +74,7 @@
 
     <div id="ui">
         <h1>Nature Survival</h1>
-        <p>Dodge the bees! <br><b>Arrows</b> or <b>Tap Sides</b></p>
+        <p>Dodge bees, <b>collect fruit!</b> <br>Arrows or Tap Sides</p>
         <div id="scoreDisplay">Score: 0</div>
     </div>
     <canvas id="gameCanvas"></canvas>
@@ -95,31 +94,27 @@ let currentX = 0;
 let speed = 8;
 let timeHue = 200;
 
-// Game State Variables
 let score = 0;
 let gameOver = false;
 let bees = [];
+let fruits = [];
 
-// --- POPUP LOGIC ---
 function checkDevice() {
-    // Show popup if screen is narrow (likely a phone)
     if (window.innerWidth < 768) {
         overlay.style.display = 'flex';
     }
 }
 
 document.getElementById('btnDesktop').addEventListener('click', () => {
-    // This forces the browser to treat the page as 1200px wide, simulating a desktop
     viewportMeta.setAttribute('content', 'width=1200');
     overlay.style.display = 'none';
-    setTimeout(resize, 100); // Trigger resize once viewport updates
+    setTimeout(resize, 100);
 });
 
 document.getElementById('btnStay').addEventListener('click', () => {
     overlay.style.display = 'none';
 });
 
-// Initialize device check
 checkDevice();
 
 function resize() {
@@ -129,20 +124,17 @@ function resize() {
 window.addEventListener('resize', resize);
 resize();
 
-// --- KEYBOARD CONTROLS ---
 window.addEventListener('keydown', (e) => {
     if (gameOver && e.key === 'Enter') location.reload();
     if (e.key === 'ArrowLeft' && lane > -1) lane--;
     if (e.key === 'ArrowRight' && lane < 1) lane++;
 });
 
-// --- TOUCH CONTROLS ---
 window.addEventListener('touchstart', (e) => {
     if (gameOver) {
         location.reload(); 
         return;
     }
-    
     const touchX = e.touches[0].clientX;
     if (touchX < width / 2) {
         if (lane > -1) lane--;
@@ -151,7 +143,6 @@ window.addEventListener('touchstart', (e) => {
     }
 }, { passive: false });
 
-// --- BUTTERFLY DATA ---
 const butterflies = [];
 for(let i = 0; i < 8; i++) {
     butterflies.push({
@@ -335,6 +326,53 @@ function drawPath() {
     ctx.restore();
 }
 
+function drawFruits() {
+    const horizon = height * 0.5;
+    const playerCX = width / 2 + currentX;
+    const playerCY = height - 150;
+    const laneSpacing = width < 600 ? width * 0.25 : 150;
+
+    if (frame % 90 === 0) {
+        fruits.push({
+            lane: Math.floor(Math.random() * 3) - 1,
+            z: 0.05,
+            type: Math.random() > 0.5 ? 'apple' : 'orange'
+        });
+    }
+
+    for (let i = fruits.length - 1; i >= 0; i--) {
+        let f = fruits[i];
+        f.z += speed / 700;
+
+        if (f.z > 1.2) {
+            fruits.splice(i, 1);
+            continue;
+        }
+
+        let px = width / 2 + (f.lane * laneSpacing * f.z);
+        let py = horizon + f.z * (height - horizon);
+        let fSize = 5 + f.z * 35;
+        if (py > playerCY - 50 && py < playerCY + 30) {
+            if (Math.abs(px - playerCX) < 45) {
+                score += 50; // Bonus points!
+                scoreDisplay.innerText = `Score: ${score}`;
+                fruits.splice(i, 1); // Remove collected fruit
+                continue;
+            }
+        }
+        ctx.save();
+        ctx.translate(px, py - fSize);
+        ctx.fillStyle = f.type === 'apple' ? '#e74c3c' : '#f39c12';
+        ctx.beginPath();
+        ctx.arc(0, 0, fSize, 0, Math.PI * 2);
+        ctx.fill();
+        // Stem/Leaf
+        ctx.fillStyle = '#27ae60';
+        ctx.fillRect(-2, -fSize - 2, 4, fSize/2);
+        ctx.restore();
+    }
+}
+
 function drawBees() {
     const horizon = height * 0.5;
     const playerCX = width / 2 + currentX;
@@ -417,9 +455,10 @@ function animate() {
     ctx.clearRect(0, 0, width, height);
     frame++;
     drawBackground(); 
-    drawPath();       
+    drawPath();        
     boy.update();
-    boy.draw();       
+    boy.draw();        
+    drawFruits();
     drawBees();        
     drawButterflies(); 
     requestAnimationFrame(animate);
