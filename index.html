@@ -59,7 +59,6 @@
             font-size: 16px;
         }
         #btnDesktop { background: #f1c40f; color: #2c3e50; }
-        #btnStay { background: #7f8c8d; color: white; }
     </style>
 </head>
 <body>
@@ -69,7 +68,7 @@
             <h3>Mobile Detected</h3>
             <p>Would you like to switch to Desktop View for a wider perspective?</p>
             <button id="btnDesktop" class="popup-btn">Simulate Desktop Mode</button>
-            <button id="btnStay" class="popup-btn">Stay on Mobile</button>
+            
         </div>
     </div>
 
@@ -110,10 +109,6 @@ document.getElementById('btnDesktop').addEventListener('click', () => {
     viewportMeta.setAttribute('content', 'width=1200');
     overlay.style.display = 'none';
     setTimeout(resize, 100);
-});
-
-document.getElementById('btnStay').addEventListener('click', () => {
-    overlay.style.display = 'none';
 });
 
 checkDevice();
