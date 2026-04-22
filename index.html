@@ -93,11 +93,12 @@ let targetX = 0;
 let currentX = 0;
 let speed = 8;
 let timeHue = 200;
-
 let score = 0;
 let gameOver = false;
 let bees = [];
 let fruits = [];
+let isSimulatedDesktop = false;
+let lastDifficultyIncrease = Date.now();
 
 function checkDevice() {
     if (window.innerWidth < 768) {
@@ -108,6 +109,8 @@ function checkDevice() {
 document.getElementById('btnDesktop').addEventListener('click', () => {
     viewportMeta.setAttribute('content', 'width=1200');
     overlay.style.display = 'none';
+    isSimulatedDesktop = true;
+    lastDifficultyIncrease = Date.now();
     setTimeout(resize, 100);
 });
 
@@ -448,6 +451,14 @@ function animate() {
         ctx.fillText(`Final Score: ${score}`, width / 2, height / 2 + 20);
         ctx.fillText('Tap or Press Enter to Restart', width / 2, height / 2 + 70);
         return; 
+    }
+    if (isSimulatedDesktop) {
+        let now = Date.now();
+        if (now - lastDifficultyIncrease >= 60000) {
+            speed *= 1.05;
+            lastDifficultyIncrease = now;
+            console.log("Adaptive Difficulty increased: New Speed =", speed.toFixed(2));
+        }
     }
 
     ctx.clearRect(0, 0, width, height);
