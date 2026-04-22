@@ -97,7 +97,7 @@ let timeHue = 200;
 let score = 0;
 let gameOver = false;
 let bees = [];
-let fruits = []; // NEW: Array for fruits
+let fruits = [];
 
 function checkDevice() {
     if (window.innerWidth < 768) {
@@ -152,8 +152,12 @@ for(let i = 0; i < 8; i++) {
 const boy = {
     x: 0, y: 0, width: 30, height: 60,
     update() {
-        targetX = lane * 150;
-        if (width < 600) targetX = lane * (width * 0.25);
+        const horizon = height * 0.5;
+        const playerY = height - 150;
+        const playerZ = (playerY - horizon) / (height - horizon);
+        const laneSpacing = width < 600 ? width * 0.25 : 150;
+        targetX = lane * laneSpacing * playerZ;
+        
         currentX += (targetX - currentX) * 0.15;
     },
     draw() {
@@ -322,14 +326,11 @@ function drawPath() {
     ctx.restore();
 }
 
-// --- FRUIT LOGIC ---
 function drawFruits() {
     const horizon = height * 0.5;
     const playerCX = width / 2 + currentX;
     const playerCY = height - 150;
     const laneSpacing = width < 600 ? width * 0.25 : 150;
-
-    // Spawn fruit every 90 frames
     if (frame % 90 === 0) {
         fruits.push({
             lane: Math.floor(Math.random() * 3) - 1,
@@ -350,25 +351,20 @@ function drawFruits() {
         let px = width / 2 + (f.lane * laneSpacing * f.z);
         let py = horizon + f.z * (height - horizon);
         let fSize = 5 + f.z * 35;
-
-        // Collision Check (Fruit)
         if (py > playerCY - 50 && py < playerCY + 30) {
             if (Math.abs(px - playerCX) < 45) {
-                score += 50; // Bonus points!
+                score += 50; 
                 scoreDisplay.innerText = `Score: ${score}`;
-                fruits.splice(i, 1); // Remove collected fruit
+                fruits.splice(i, 1);
                 continue;
             }
         }
-
-        // Draw Fruit
         ctx.save();
         ctx.translate(px, py - fSize);
         ctx.fillStyle = f.type === 'apple' ? '#e74c3c' : '#f39c12';
         ctx.beginPath();
         ctx.arc(0, 0, fSize, 0, Math.PI * 2);
         ctx.fill();
-        // Stem/Leaf
         ctx.fillStyle = '#27ae60';
         ctx.fillRect(-2, -fSize - 2, 4, fSize/2);
         ctx.restore();
@@ -460,7 +456,7 @@ function animate() {
     drawPath();        
     boy.update();
     boy.draw();        
-    drawFruits(); // NEW: Call fruit drawing function
+    drawFruits();
     drawBees();        
     drawButterflies(); 
     requestAnimationFrame(animate);
