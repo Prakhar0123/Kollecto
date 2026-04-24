@@ -419,12 +419,21 @@ function drawBees() {
     const laneSpacing = width < 600 ? width * 0.25 : 150;
 
     if (!isPaused && frame % 40 === 0) {
-        bees.push({
+        let newBee = {
             lane: Math.floor(Math.random() * 3) - 1,
             z: 0.05,
             passed: false,
-            offset: Math.random() * 100
-        });
+            offset: Math.random() * 100,
+            targetLane: null,
+            switchProgress: 0
+        };
+
+        if (isSimulatedDesktop && Math.random() < 0.3) {
+            let possibleLanes = [-1, 0, 1].filter(l => l !== newBee.lane);
+            newBee.targetLane = possibleLanes[Math.floor(Math.random() * possibleLanes.length)];
+        }
+        
+        bees.push(newBee);
     }
 
     for (let i = bees.length - 1; i >= 0; i--) {
@@ -436,12 +445,25 @@ function drawBees() {
             continue;
         }
 
-        let px = width / 2 + (bee.lane * laneSpacing * bee.z);
+        let currentLanePos = bee.lane;
+        if (bee.targetLane !== null && bee.z > 0.3) {
+            bee.switchProgress += 0.02;
+            if (bee.switchProgress > 1) bee.switchProgress = 1;
+            currentLanePos = bee.lane + (bee.targetLane - bee.lane) * bee.switchProgress;
+            
+            if (bee.switchProgress >= 1) {
+                bee.lane = bee.targetLane;
+                bee.targetLane = null;
+            }
+        }
+
+        let px = width / 2 + (currentLanePos * laneSpacing * bee.z);
         let py = horizon + bee.z * (height - horizon);
         let bSize = 5 + bee.z * 40; 
 
         if (!bee.passed) {
             if (py > playerCY - 50 && py < playerCY + 30) { 
+                // Collision check uses currentLanePos for accuracy during transition
                 if (Math.abs(px - playerCX) < 40) { 
                     gameOver = true;
                 }
@@ -457,13 +479,12 @@ function drawBees() {
         ctx.translate(px, py - (bSize * 1.5)); 
         let wobble = Math.sin(frame * 0.2 + bee.offset) * (bee.z * 15);
         ctx.translate(wobble, Math.cos(frame * 0.3) * 5); 
-
-        ctx.fillStyle = '#f1c40f';
+        ctx.fillStyle = (bee.targetLane !== null || bee.switchProgress > 0) ? '#e67e22' : '#f1c40f';
         ctx.beginPath(); ctx.ellipse(0, 0, bSize, bSize * 0.8, 0, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = '#000';
         ctx.fillRect(-bSize * 0.4, -bSize * 0.8, bSize * 0.25, bSize * 1.6);
         ctx.fillRect(bSize * 0.15, -bSize * 0.8, bSize * 0.25, bSize * 1.6);
-        ctx.fillStyle = '#e74c3c';
+        ctx.fillStyle = (bee.targetLane !== null) ? '#ff0000' : '#e74c3c'; 
         ctx.beginPath(); ctx.arc(-bSize*0.3, bSize*0.2, bSize*0.2, 0, Math.PI*2); ctx.fill();
         ctx.beginPath(); ctx.arc(bSize*0.3, bSize*0.2, bSize*0.2, 0, Math.PI*2); ctx.fill();
         ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
