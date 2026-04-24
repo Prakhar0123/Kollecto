@@ -26,6 +26,19 @@
         h1 { margin: 0 0 5px 0; font-size: clamp(24px, 5vw, 32px); color: #f1c40f; }
         p { margin: 0 0 10px 0; font-size: clamp(14px, 4vw, 18px); }
         #scoreDisplay { font-size: 24px; font-weight: bold; color: #2ecc71; margin: 0; }
+        #pauseBtn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 100;
+            padding: 10px 20px;
+            background: rgba(241, 196, 15, 0.8);
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            pointer-events: auto;
+        }
 
         #desktopOverlay {
             position: fixed;
@@ -68,13 +81,14 @@
             <h3>Mobile Detected</h3>
             <p>Would you like to switch to Desktop View for a wider perspective?</p>
             <button id="btnDesktop" class="popup-btn">Simulate Desktop Mode</button>
-            
         </div>
     </div>
 
+    <button id="pauseBtn">PAUSE</button>
+
     <div id="ui">
         <h1>Nature Survival</h1>
-        <p>Dodge bees, <b>collect fruit!</b> <br>Arrows or Tap Sides</p>
+        <p>Dodge bees, <b>collect fruit!</b> <br>Arrows/Space or Tap Sides</p>
         <div id="scoreDisplay">Score: 0</div>
     </div>
     <canvas id="gameCanvas"></canvas>
@@ -85,6 +99,7 @@ const ctx = canvas.getContext('2d');
 const scoreDisplay = document.getElementById('scoreDisplay');
 const overlay = document.getElementById('desktopOverlay');
 const viewportMeta = document.getElementById('viewport');
+const pauseBtn = document.getElementById('pauseBtn');
 
 let width, height;
 let frame = 0;
@@ -93,10 +108,13 @@ let targetX = 0;
 let currentX = 0;
 let speed = 8;
 let timeHue = 200;
+
 let score = 0;
 let gameOver = false;
+let isPaused = false; // New Pause State
 let bees = [];
 let fruits = [];
+
 let isSimulatedDesktop = false;
 let lastDifficultyIncrease = Date.now();
 
@@ -105,7 +123,6 @@ function checkDevice() {
         overlay.style.display = 'flex';
     }
 }
-
 document.getElementById('btnDesktop').addEventListener('click', () => {
     viewportMeta.setAttribute('content', 'width=1200');
     overlay.style.display = 'none';
@@ -113,7 +130,6 @@ document.getElementById('btnDesktop').addEventListener('click', () => {
     lastDifficultyIncrease = Date.now();
     setTimeout(resize, 100);
 });
-
 checkDevice();
 
 function resize() {
@@ -122,11 +138,31 @@ function resize() {
 }
 window.addEventListener('resize', resize);
 resize();
+function togglePause() {
+    if (gameOver) return;
+    isPaused = !isPaused;
+    pauseBtn.innerText = isPaused ? "RESUME" : "PAUSE";
+    if (!isPaused) animate();
+}
+
+pauseBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    togglePause();
+});
 
 window.addEventListener('keydown', (e) => {
     if (gameOver && e.key === 'Enter') location.reload();
-    if (e.key === 'ArrowLeft' && lane > -1) lane--;
-    if (e.key === 'ArrowRight' && lane < 1) lane++;
+    
+    // Spacebar to pause
+    if (e.code === 'Space') {
+        e.preventDefault();
+        togglePause();
+    }
+
+    if (!isPaused) {
+        if (e.key === 'ArrowLeft' && lane > -1) lane--;
+        if (e.key === 'ArrowRight' && lane < 1) lane++;
+    }
 });
 
 window.addEventListener('touchstart', (e) => {
@@ -134,6 +170,8 @@ window.addEventListener('touchstart', (e) => {
         location.reload(); 
         return;
     }
+    if (isPaused) return;
+
     const touchX = e.touches[0].clientX;
     if (touchX < width / 2) {
         if (lane > -1) lane--;
@@ -160,7 +198,6 @@ const boy = {
         const playerZ = (playerY - horizon) / (height - horizon);
         const laneSpacing = width < 600 ? width * 0.25 : 150;
         targetX = lane * laneSpacing * playerZ;
-        
         currentX += (targetX - currentX) * 0.15;
     },
     draw() {
@@ -230,7 +267,7 @@ function drawFlora(horizon) {
     floraParticles.sort((a, b) => b.z - a.z);
 
     floraParticles.forEach(p => {
-        p.z -= speed / 3000; 
+        if (!isPaused) p.z -= speed / 3000; 
         if (p.z <= 0) { p.z = 1; p.x = Math.random() * 3000 - 1500; }
 
         const perspective = 1 / (p.z + 0.1);
@@ -279,7 +316,7 @@ function drawButterflies() {
     butterflies.sort((a, b) => b.z - a.z);
 
     butterflies.forEach(b => {
-        b.z -= speed / 2500;
+        if (!isPaused) b.z -= speed / 2500;
         if (b.z <= 0) { b.z = 1; b.x = Math.random() * 1600 - 800; }
 
         const perspective = 1 / (b.z + 0.1);
@@ -334,7 +371,8 @@ function drawFruits() {
     const playerCX = width / 2 + currentX;
     const playerCY = height - 150;
     const laneSpacing = width < 600 ? width * 0.25 : 150;
-    if (frame % 90 === 0) {
+    
+    if (!isPaused && frame % 90 === 0) {
         fruits.push({
             lane: Math.floor(Math.random() * 3) - 1,
             z: 0.05,
@@ -344,7 +382,7 @@ function drawFruits() {
 
     for (let i = fruits.length - 1; i >= 0; i--) {
         let f = fruits[i];
-        f.z += speed / 700;
+        if (!isPaused) f.z += speed / 700;
 
         if (f.z > 1.2) {
             fruits.splice(i, 1);
@@ -380,7 +418,7 @@ function drawBees() {
     const playerCY = height - 150;
     const laneSpacing = width < 600 ? width * 0.25 : 150;
 
-    if (frame % 40 === 0) {
+    if (!isPaused && frame % 40 === 0) {
         bees.push({
             lane: Math.floor(Math.random() * 3) - 1,
             z: 0.05,
@@ -391,7 +429,7 @@ function drawBees() {
 
     for (let i = bees.length - 1; i >= 0; i--) {
         let bee = bees[i];
-        bee.z += speed / 700;
+        if (!isPaused) bee.z += speed / 700;
 
         if (bee.z > 1.2) {
             bees.splice(i, 1);
@@ -408,7 +446,6 @@ function drawBees() {
                     gameOver = true;
                 }
             }
-            
             if (py >= playerCY + 30) {
                 bee.passed = true;
                 score += 10;
@@ -452,12 +489,24 @@ function animate() {
         ctx.fillText('Tap or Press Enter to Restart', width / 2, height / 2 + 70);
         return; 
     }
+    if (isPaused) {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.fillRect(0, 0, width, height);
+        ctx.fillStyle = '#f1c40f';
+        ctx.font = 'bold 50px "Segoe UI", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('PAUSED', width / 2, height / 2);
+        ctx.fillStyle = 'white';
+        ctx.font = '20px "Segoe UI", sans-serif';
+        ctx.fillText('Press Space or Tap Resume', width / 2, height / 2 + 40);
+        return;
+    }
+
     if (isSimulatedDesktop) {
         let now = Date.now();
-        if (now - lastDifficultyIncrease >= 60000) {
-            speed *= 1.05;
+        if (now - lastDifficultyIncrease >= 60000) { 
+            speed *= 1.05; 
             lastDifficultyIncrease = now;
-            console.log("Adaptive Difficulty increased: New Speed =", speed.toFixed(2));
         }
     }
 
