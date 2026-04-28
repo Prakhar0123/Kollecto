@@ -1,4 +1,4 @@
-This game is fully cross‑browser compatible & built entirely with HTML, CSS, & JavaScript. If you enjoy the experience, please consider showing a token of appreciation.
+This game is fully cross‑browser compatible & built entirely with HTML, CSS, & JavaScript. If you like the experience, please consider showing a token of appreciation by starring the project & share your reviews.
 
 New updates to be rolled out very soon.
 
