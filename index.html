@@ -522,15 +522,6 @@ function animate() {
         ctx.fillText('Press Space or Tap Resume', width / 2, height / 2 + 40);
         return;
     }
-
-    if (isSimulatedDesktop) {
-        let now = Date.now();
-        if (now - lastDifficultyIncrease >= 60000) { 
-            speed *= 1.05; 
-            lastDifficultyIncrease = now;
-        }
-    }
-
     ctx.clearRect(0, 0, width, height);
     frame++;
     drawBackground(); 
