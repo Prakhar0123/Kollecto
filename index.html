@@ -111,25 +111,90 @@ let timeHue = 200;
 
 let score = 0;
 let gameOver = false;
-let isPaused = false; // New Pause State
+let isPaused = false;
 let bees = [];
 let fruits = [];
 
 let isSimulatedDesktop = false;
 let lastDifficultyIncrease = Date.now();
+let audioCtx = null;
+let audioInitialized = false;
 
+function initAudio() {
+    if (audioInitialized) return;
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return;
+    
+    audioCtx = new AudioContext();
+    audioInitialized = true;
+    setInterval(playCricketBurst, 1500 + Math.random() * 2000);
+    setInterval(playCicadaChirr, 4000 + Math.random() * 4000);
+}
+
+function playCricketBurst() {
+    if (!audioCtx || isPaused || gameOver) return;
+    const bursts = Math.floor(Math.random() * 3) + 2; 
+    let startTime = audioCtx.currentTime;
+    for(let i=0; i<bursts; i++) {
+        createInsectTone(startTime + i * 0.15, 0.1, 4500 + Math.random()*500, 50, 0.03, 'sine');
+    }
+}
+
+function playCicadaChirr() {
+    if (!audioCtx || isPaused || gameOver) return;
+    createInsectTone(audioCtx.currentTime, 1.5 + Math.random(), 5500 + Math.random()*1000, 80, 0.015, 'square', true);
+}
+
+function createInsectTone(time, duration, baseFreq, tremoloFreq, vol, type, fadeInOut = false) {
+    const osc = audioCtx.createOscillator();
+    const masterGain = audioCtx.createGain();
+    const lfo = audioCtx.createOscillator();
+    const lfoGain = audioCtx.createGain();
+
+    osc.type = type;
+    osc.frequency.value = baseFreq;
+    lfo.type = 'sawtooth';
+    lfo.frequency.value = tremoloFreq;
+    
+    lfo.connect(lfoGain);
+    lfoGain.connect(masterGain.gain);
+    osc.connect(masterGain);
+    masterGain.connect(audioCtx.destination);
+
+    masterGain.gain.setValueAtTime(0, time);
+    
+    if (fadeInOut) {
+        masterGain.gain.linearRampToValueAtTime(vol, time + duration * 0.3);
+        masterGain.gain.setValueAtTime(vol, time + duration * 0.7);
+        masterGain.gain.linearRampToValueAtTime(0, time + duration);
+    } else {
+        masterGain.gain.linearRampToValueAtTime(vol, time + 0.02);
+        masterGain.gain.setValueAtTime(vol, time + duration - 0.02);
+        masterGain.gain.linearRampToValueAtTime(0, time + duration);
+    }
+
+    lfoGain.gain.setValueAtTime(vol, time);
+
+    osc.start(time);
+    lfo.start(time);
+    osc.stop(time + duration);
+    lfo.stop(time + duration);
+}
 function checkDevice() {
     if (window.innerWidth < 768) {
         overlay.style.display = 'flex';
     }
 }
+
 document.getElementById('btnDesktop').addEventListener('click', () => {
+    initAudio();
     viewportMeta.setAttribute('content', 'width=1200');
     overlay.style.display = 'none';
     isSimulatedDesktop = true;
     lastDifficultyIncrease = Date.now();
     setTimeout(resize, 100);
 });
+
 checkDevice();
 
 function resize() {
@@ -138,22 +203,30 @@ function resize() {
 }
 window.addEventListener('resize', resize);
 resize();
+
 function togglePause() {
     if (gameOver) return;
+    initAudio();
     isPaused = !isPaused;
     pauseBtn.innerText = isPaused ? "RESUME" : "PAUSE";
-    if (!isPaused) animate();
+        if (audioCtx) {
+        if (isPaused) audioCtx.suspend();
+        else audioCtx.resume();
+    }
+
+    if (!isPaused) animate(); 
 }
 
 pauseBtn.addEventListener('click', (e) => {
     e.stopPropagation();
+    initAudio();
     togglePause();
 });
 
 window.addEventListener('keydown', (e) => {
+    initAudio();
     if (gameOver && e.key === 'Enter') location.reload();
     
-    // Spacebar to pause
     if (e.code === 'Space') {
         e.preventDefault();
         togglePause();
@@ -166,6 +239,7 @@ window.addEventListener('keydown', (e) => {
 });
 
 window.addEventListener('touchstart', (e) => {
+    initAudio();
     if (gameOver) {
         location.reload(); 
         return;
@@ -180,6 +254,7 @@ window.addEventListener('touchstart', (e) => {
     }
 }, { passive: false });
 
+// Game Objects Setup...
 const butterflies = [];
 for(let i = 0; i < 8; i++) {
     butterflies.push({
@@ -424,7 +499,7 @@ function drawBees() {
             z: 0.05,
             passed: false,
             offset: Math.random() * 100,
-            targetLane: null,
+            targetLane: null, 
             switchProgress: 0
         };
 
@@ -446,8 +521,8 @@ function drawBees() {
         }
 
         let currentLanePos = bee.lane;
-        if (bee.targetLane !== null && bee.z > 0.3) {
-            bee.switchProgress += 0.02;
+        if (bee.targetLane !== null && bee.z > 0.3) { 
+            bee.switchProgress += 0.02; 
             if (bee.switchProgress > 1) bee.switchProgress = 1;
             currentLanePos = bee.lane + (bee.targetLane - bee.lane) * bee.switchProgress;
             
@@ -463,9 +538,9 @@ function drawBees() {
 
         if (!bee.passed) {
             if (py > playerCY - 50 && py < playerCY + 30) { 
-                // Collision check uses currentLanePos for accuracy during transition
                 if (Math.abs(px - playerCX) < 40) { 
                     gameOver = true;
+                    if (audioCtx) audioCtx.suspend();
                 }
             }
             if (py >= playerCY + 30) {
@@ -479,14 +554,18 @@ function drawBees() {
         ctx.translate(px, py - (bSize * 1.5)); 
         let wobble = Math.sin(frame * 0.2 + bee.offset) * (bee.z * 15);
         ctx.translate(wobble, Math.cos(frame * 0.3) * 5); 
+
         ctx.fillStyle = (bee.targetLane !== null || bee.switchProgress > 0) ? '#e67e22' : '#f1c40f';
+        
         ctx.beginPath(); ctx.ellipse(0, 0, bSize, bSize * 0.8, 0, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = '#000';
         ctx.fillRect(-bSize * 0.4, -bSize * 0.8, bSize * 0.25, bSize * 1.6);
         ctx.fillRect(bSize * 0.15, -bSize * 0.8, bSize * 0.25, bSize * 1.6);
+        
         ctx.fillStyle = (bee.targetLane !== null) ? '#ff0000' : '#e74c3c'; 
         ctx.beginPath(); ctx.arc(-bSize*0.3, bSize*0.2, bSize*0.2, 0, Math.PI*2); ctx.fill();
         ctx.beginPath(); ctx.arc(bSize*0.3, bSize*0.2, bSize*0.2, 0, Math.PI*2); ctx.fill();
+        
         ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
         let wingFlap = Math.abs(Math.sin(frame * 1.5)) * bSize;
         ctx.beginPath(); ctx.ellipse(-bSize*0.8, -bSize*0.5, bSize*0.6, wingFlap, Math.PI/6, 0, Math.PI*2); ctx.fill();
@@ -510,6 +589,7 @@ function animate() {
         ctx.fillText('Tap or Press Enter to Restart', width / 2, height / 2 + 70);
         return; 
     }
+
     if (isPaused) {
         ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
         ctx.fillRect(0, 0, width, height);
@@ -520,8 +600,17 @@ function animate() {
         ctx.fillStyle = 'white';
         ctx.font = '20px "Segoe UI", sans-serif';
         ctx.fillText('Press Space or Tap Resume', width / 2, height / 2 + 40);
-        return;
+        return; 
     }
+
+    if (isSimulatedDesktop) {
+        let now = Date.now();
+        if (now - lastDifficultyIncrease >= 60000) { 
+            speed *= 1.00; 
+            lastDifficultyIncrease = now;
+        }
+    }
+
     ctx.clearRect(0, 0, width, height);
     frame++;
     drawBackground(); 
