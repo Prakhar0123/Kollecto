@@ -27,8 +27,6 @@
         p { margin: 0 0 10px 0; font-size: clamp(14px, 4vw, 18px); }
         #scoreDisplay { font-size: 24px; font-weight: bold; color: #2ecc71; margin: 0; }
         #audioStatus { font-size: 14px; color: #f39c12; margin-top: 5px; font-weight: bold; }
-
-        /* Pause Button Styling */
         #pauseBtn {
             position: absolute;
             top: 20px;
@@ -40,7 +38,7 @@
             border-radius: 8px;
             font-weight: bold;
             cursor: pointer;
-            pointer-events: auto; /* Ensures it's clickable */
+            pointer-events: auto;
         }
 
         #desktopOverlay {
@@ -121,12 +119,9 @@ let fruits = [];
 
 let isSimulatedDesktop = false;
 let lastDifficultyIncrease = Date.now();
-
-// --- SOUND ENGINE (Web Audio API) ---
 const SoundEngine = (() => {
     let actx;
     let initialized = false;
-    // Notes for sweet, gentle C Major Pentatonic arpeggios
     const notes = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25];
     let noteIdx = 2;
 
@@ -134,7 +129,7 @@ const SoundEngine = (() => {
         if (initialized) return;
         actx = new (window.AudioContext || window.webkitAudioContext)();
         initialized = true;
-        document.getElementById('audioStatus').innerText = "🔊 Gentle Nature Sounds Active";
+        document.getElementById('audioStatus');
         startLoops();
     }
 
@@ -143,8 +138,6 @@ const SoundEngine = (() => {
         if (pauseAudio) actx.suspend();
         else actx.resume();
     }
-
-    // Helper for smooth bird chirps & background music
     function playTone(freq, type, duration, vol, slideToFreq) {
         if (!actx || actx.state === 'suspended') return;
         const osc = actx.createOscillator();
@@ -153,7 +146,6 @@ const SoundEngine = (() => {
         
         osc.frequency.setValueAtTime(freq, actx.currentTime);
         if (slideToFreq) {
-            // Glides the pitch to simulate chirps
             osc.frequency.exponentialRampToValueAtTime(slideToFreq, actx.currentTime + duration);
         }
 
@@ -166,20 +158,18 @@ const SoundEngine = (() => {
         osc.start(actx.currentTime);
         osc.stop(actx.currentTime + duration);
     }
-
-    // Helper for insect sounds (uses Amplitude Modulation for the "rrr" rolling effect)
     function playInsectTone(baseFreq, modFreq, duration, vol) {
         if (!actx || actx.state === 'suspended') return;
         const osc = actx.createOscillator();
-        const mod = actx.createOscillator(); // LFO (Low Frequency Oscillator)
+        const mod = actx.createOscillator();
         const modGain = actx.createGain();
         const mainGain = actx.createGain();
 
         osc.type = 'sawtooth';
-        osc.frequency.value = baseFreq; // High pitch insect
+        osc.frequency.value = baseFreq;
 
         mod.type = 'square';
-        mod.frequency.value = modFreq; // How fast the "rrr" rolls
+        mod.frequency.value = modFreq;
 
         mod.connect(modGain.gain);
         osc.connect(modGain);
@@ -197,52 +187,39 @@ const SoundEngine = (() => {
     }
 
     function startLoops() {
-        // Mild Gentle BG Music
         setInterval(() => {
             if (actx.state === 'running' && !gameOver && !isPaused) {
-                playTone(notes[noteIdx], 'sine', 2.0, 0.05); // Soft overlapping volume
-                // Gentle wandering melody
+                playTone(notes[noteIdx], 'sine', 2.0, 0.05);
                 noteIdx += Math.random() > 0.5 ? 1 : -1;
                 if (noteIdx < 0) noteIdx = 0;
                 if (noteIdx >= notes.length) noteIdx = notes.length - 1;
             }
         }, 800);
-
-        // Procedural Birds
         function nextBird() {
             if (actx.state === 'running' && !gameOver && !isPaused) {
                 const r = Math.random();
                 if (r < 0.33) {
-                    // "koo" (Mid pitch descending smoothly)
                     playTone(600, 'sine', 0.5, 0.08, 400);
                 } else if (r < 0.66) {
-                    // "chew-chew" (High pitch dropping rapidly, played twice)
                     playTone(1800, 'sine', 0.2, 0.06, 900);
                     setTimeout(() => playTone(1800, 'sine', 0.2, 0.06, 900), 250);
                 } else {
-                    // "pyuh" (Mid pitch scooping upwards fast)
                     playTone(700, 'sine', 0.3, 0.08, 1400);
                 }
             }
             setTimeout(nextBird, 3000 + Math.random() * 5000);
         }
         nextBird();
-
-        // Procedural Insects
         function nextInsect() {
             if (actx.state === 'running' && !gameOver && !isPaused) {
                 const r = Math.random();
                 if (r < 0.25) {
-                    // "chrrr" - high freq, fast roll
                     playInsectTone(4500, 45, 1.0, 0.02);
                 } else if (r < 0.5) {
-                    // "prrr" - lower freq, medium roll
                     playInsectTone(3500, 35, 0.8, 0.02);
                 } else if (r < 0.75) {
-                    // "mrrr" - lowest freq, slow roll
                     playInsectTone(2500, 30, 1.2, 0.02);
                 } else {
-                    // "trrr" - highest freq, fastest roll
                     playInsectTone(5500, 50, 0.6, 0.02);
                 }
             }
@@ -281,10 +258,10 @@ resize();
 
 function togglePause() {
     if (gameOver) return;
-    SoundEngine.init(); // Initialize if pressed as first action
+    SoundEngine.init();
     isPaused = !isPaused;
     pauseBtn.innerText = isPaused ? "RESUME" : "PAUSE";
-    SoundEngine.toggle(isPaused); // Pause audio
+    SoundEngine.toggle(isPaused);
     if (!isPaused) animate(); 
 }
 
@@ -294,7 +271,7 @@ pauseBtn.addEventListener('click', (e) => {
 });
 
 window.addEventListener('keydown', (e) => {
-    SoundEngine.init(); // Init sound on any key press
+    SoundEngine.init();
     if (gameOver && e.key === 'Enter') location.reload();
     
     if (e.code === 'Space') {
@@ -309,7 +286,7 @@ window.addEventListener('keydown', (e) => {
 });
 
 window.addEventListener('touchstart', (e) => {
-    SoundEngine.init(); // Init sound on tap
+    SoundEngine.init();
     if (gameOver) {
         location.reload(); 
         return;
@@ -323,8 +300,6 @@ window.addEventListener('touchstart', (e) => {
         if (lane < 1) lane++;
     }
 }, { passive: false });
-
-// Global interaction listener for desktop clicks to initialize sound early
 window.addEventListener('mousedown', SoundEngine.init, { once: true });
 
 const butterflies = [];
@@ -612,7 +587,7 @@ function drawBees() {
             if (py > playerCY - 50 && py < playerCY + 30) { 
                 if (Math.abs(px - playerCX) < 40) { 
                     gameOver = true;
-                    SoundEngine.toggle(true); // Stop sounds on death
+                    SoundEngine.toggle(true);
                 }
             }
             if (py >= playerCY + 30) {
