@@ -26,6 +26,9 @@
         h1 { margin: 0 0 5px 0; font-size: clamp(24px, 5vw, 32px); color: #f1c40f; }
         p { margin: 0 0 10px 0; font-size: clamp(14px, 4vw, 18px); }
         #scoreDisplay { font-size: 24px; font-weight: bold; color: #2ecc71; margin: 0; }
+        #audioStatus { font-size: 14px; color: #f39c12; margin-top: 5px; font-weight: bold; }
+
+        /* Pause Button Styling */
         #pauseBtn {
             position: absolute;
             top: 20px;
@@ -37,7 +40,7 @@
             border-radius: 8px;
             font-weight: bold;
             cursor: pointer;
-            pointer-events: auto;
+            pointer-events: auto; /* Ensures it's clickable */
         }
 
         #desktopOverlay {
@@ -90,6 +93,7 @@
         <h1>Nature Survival</h1>
         <p>Dodge bees, <b>collect fruit!</b> <br>Arrows/Space or Tap Sides</p>
         <div id="scoreDisplay">Score: 0</div>
+        <div id="audioStatus">🔇 Interact to start Audio</div>
     </div>
     <canvas id="gameCanvas"></canvas>
 
@@ -111,75 +115,146 @@ let timeHue = 200;
 
 let score = 0;
 let gameOver = false;
-let isPaused = false;
+let isPaused = false; 
 let bees = [];
 let fruits = [];
 
 let isSimulatedDesktop = false;
 let lastDifficultyIncrease = Date.now();
-let audioCtx = null;
-let audioInitialized = false;
 
-function initAudio() {
-    if (audioInitialized) return;
-    const AudioContext = window.AudioContext || window.webkitAudioContext;
-    if (!AudioContext) return;
-    
-    audioCtx = new AudioContext();
-    audioInitialized = true;
-    setInterval(playCricketBurst, 1500 + Math.random() * 2000);
-    setInterval(playCicadaChirr, 4000 + Math.random() * 4000);
-}
+// --- SOUND ENGINE (Web Audio API) ---
+const SoundEngine = (() => {
+    let actx;
+    let initialized = false;
+    // Notes for sweet, gentle C Major Pentatonic arpeggios
+    const notes = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25];
+    let noteIdx = 2;
 
-function playCricketBurst() {
-    if (!audioCtx || isPaused || gameOver) return;
-    const bursts = Math.floor(Math.random() * 3) + 2; 
-    let startTime = audioCtx.currentTime;
-    for(let i=0; i<bursts; i++) {
-        createInsectTone(startTime + i * 0.15, 0.1, 4500 + Math.random()*500, 50, 0.03, 'sine');
-    }
-}
-
-function playCicadaChirr() {
-    if (!audioCtx || isPaused || gameOver) return;
-    createInsectTone(audioCtx.currentTime, 1.5 + Math.random(), 5500 + Math.random()*1000, 80, 0.015, 'square', true);
-}
-
-function createInsectTone(time, duration, baseFreq, tremoloFreq, vol, type, fadeInOut = false) {
-    const osc = audioCtx.createOscillator();
-    const masterGain = audioCtx.createGain();
-    const lfo = audioCtx.createOscillator();
-    const lfoGain = audioCtx.createGain();
-
-    osc.type = type;
-    osc.frequency.value = baseFreq;
-    lfo.type = 'sawtooth';
-    lfo.frequency.value = tremoloFreq;
-    
-    lfo.connect(lfoGain);
-    lfoGain.connect(masterGain.gain);
-    osc.connect(masterGain);
-    masterGain.connect(audioCtx.destination);
-
-    masterGain.gain.setValueAtTime(0, time);
-    
-    if (fadeInOut) {
-        masterGain.gain.linearRampToValueAtTime(vol, time + duration * 0.3);
-        masterGain.gain.setValueAtTime(vol, time + duration * 0.7);
-        masterGain.gain.linearRampToValueAtTime(0, time + duration);
-    } else {
-        masterGain.gain.linearRampToValueAtTime(vol, time + 0.02);
-        masterGain.gain.setValueAtTime(vol, time + duration - 0.02);
-        masterGain.gain.linearRampToValueAtTime(0, time + duration);
+    function init() {
+        if (initialized) return;
+        actx = new (window.AudioContext || window.webkitAudioContext)();
+        initialized = true;
+        document.getElementById('audioStatus').innerText = "🔊 Gentle Nature Sounds Active";
+        startLoops();
     }
 
-    lfoGain.gain.setValueAtTime(vol, time);
+    function toggle(pauseAudio) {
+        if (!actx) return;
+        if (pauseAudio) actx.suspend();
+        else actx.resume();
+    }
 
-    osc.start(time);
-    lfo.start(time);
-    osc.stop(time + duration);
-    lfo.stop(time + duration);
-}
+    // Helper for smooth bird chirps & background music
+    function playTone(freq, type, duration, vol, slideToFreq) {
+        if (!actx || actx.state === 'suspended') return;
+        const osc = actx.createOscillator();
+        const gain = actx.createGain();
+        osc.type = type;
+        
+        osc.frequency.setValueAtTime(freq, actx.currentTime);
+        if (slideToFreq) {
+            // Glides the pitch to simulate chirps
+            osc.frequency.exponentialRampToValueAtTime(slideToFreq, actx.currentTime + duration);
+        }
+
+        gain.gain.setValueAtTime(0, actx.currentTime);
+        gain.gain.linearRampToValueAtTime(vol, actx.currentTime + duration * 0.1);
+        gain.gain.exponentialRampToValueAtTime(0.001, actx.currentTime + duration);
+
+        osc.connect(gain);
+        gain.connect(actx.destination);
+        osc.start(actx.currentTime);
+        osc.stop(actx.currentTime + duration);
+    }
+
+    // Helper for insect sounds (uses Amplitude Modulation for the "rrr" rolling effect)
+    function playInsectTone(baseFreq, modFreq, duration, vol) {
+        if (!actx || actx.state === 'suspended') return;
+        const osc = actx.createOscillator();
+        const mod = actx.createOscillator(); // LFO (Low Frequency Oscillator)
+        const modGain = actx.createGain();
+        const mainGain = actx.createGain();
+
+        osc.type = 'sawtooth';
+        osc.frequency.value = baseFreq; // High pitch insect
+
+        mod.type = 'square';
+        mod.frequency.value = modFreq; // How fast the "rrr" rolls
+
+        mod.connect(modGain.gain);
+        osc.connect(modGain);
+        modGain.connect(mainGain);
+        mainGain.connect(actx.destination);
+
+        mainGain.gain.setValueAtTime(0, actx.currentTime);
+        mainGain.gain.linearRampToValueAtTime(vol, actx.currentTime + duration * 0.2);
+        mainGain.gain.linearRampToValueAtTime(0, actx.currentTime + duration);
+
+        osc.start(actx.currentTime);
+        mod.start(actx.currentTime);
+        osc.stop(actx.currentTime + duration);
+        mod.stop(actx.currentTime + duration);
+    }
+
+    function startLoops() {
+        // Mild Gentle BG Music
+        setInterval(() => {
+            if (actx.state === 'running' && !gameOver && !isPaused) {
+                playTone(notes[noteIdx], 'sine', 2.0, 0.05); // Soft overlapping volume
+                // Gentle wandering melody
+                noteIdx += Math.random() > 0.5 ? 1 : -1;
+                if (noteIdx < 0) noteIdx = 0;
+                if (noteIdx >= notes.length) noteIdx = notes.length - 1;
+            }
+        }, 800);
+
+        // Procedural Birds
+        function nextBird() {
+            if (actx.state === 'running' && !gameOver && !isPaused) {
+                const r = Math.random();
+                if (r < 0.33) {
+                    // "koo" (Mid pitch descending smoothly)
+                    playTone(600, 'sine', 0.5, 0.08, 400);
+                } else if (r < 0.66) {
+                    // "chew-chew" (High pitch dropping rapidly, played twice)
+                    playTone(1800, 'sine', 0.2, 0.06, 900);
+                    setTimeout(() => playTone(1800, 'sine', 0.2, 0.06, 900), 250);
+                } else {
+                    // "pyuh" (Mid pitch scooping upwards fast)
+                    playTone(700, 'sine', 0.3, 0.08, 1400);
+                }
+            }
+            setTimeout(nextBird, 3000 + Math.random() * 5000);
+        }
+        nextBird();
+
+        // Procedural Insects
+        function nextInsect() {
+            if (actx.state === 'running' && !gameOver && !isPaused) {
+                const r = Math.random();
+                if (r < 0.25) {
+                    // "chrrr" - high freq, fast roll
+                    playInsectTone(4500, 45, 1.0, 0.02);
+                } else if (r < 0.5) {
+                    // "prrr" - lower freq, medium roll
+                    playInsectTone(3500, 35, 0.8, 0.02);
+                } else if (r < 0.75) {
+                    // "mrrr" - lowest freq, slow roll
+                    playInsectTone(2500, 30, 1.2, 0.02);
+                } else {
+                    // "trrr" - highest freq, fastest roll
+                    playInsectTone(5500, 50, 0.6, 0.02);
+                }
+            }
+            setTimeout(nextInsect, 2000 + Math.random() * 4000);
+        }
+        nextInsect();
+    }
+
+    return { init, toggle };
+})();
+// --- END SOUND ENGINE ---
+
 function checkDevice() {
     if (window.innerWidth < 768) {
         overlay.style.display = 'flex';
@@ -187,7 +262,7 @@ function checkDevice() {
 }
 
 document.getElementById('btnDesktop').addEventListener('click', () => {
-    initAudio();
+    SoundEngine.init();
     viewportMeta.setAttribute('content', 'width=1200');
     overlay.style.display = 'none';
     isSimulatedDesktop = true;
@@ -206,25 +281,20 @@ resize();
 
 function togglePause() {
     if (gameOver) return;
-    initAudio();
+    SoundEngine.init(); // Initialize if pressed as first action
     isPaused = !isPaused;
     pauseBtn.innerText = isPaused ? "RESUME" : "PAUSE";
-        if (audioCtx) {
-        if (isPaused) audioCtx.suspend();
-        else audioCtx.resume();
-    }
-
+    SoundEngine.toggle(isPaused); // Pause audio
     if (!isPaused) animate(); 
 }
 
 pauseBtn.addEventListener('click', (e) => {
     e.stopPropagation();
-    initAudio();
     togglePause();
 });
 
 window.addEventListener('keydown', (e) => {
-    initAudio();
+    SoundEngine.init(); // Init sound on any key press
     if (gameOver && e.key === 'Enter') location.reload();
     
     if (e.code === 'Space') {
@@ -239,7 +309,7 @@ window.addEventListener('keydown', (e) => {
 });
 
 window.addEventListener('touchstart', (e) => {
-    initAudio();
+    SoundEngine.init(); // Init sound on tap
     if (gameOver) {
         location.reload(); 
         return;
@@ -254,7 +324,9 @@ window.addEventListener('touchstart', (e) => {
     }
 }, { passive: false });
 
-// Game Objects Setup...
+// Global interaction listener for desktop clicks to initialize sound early
+window.addEventListener('mousedown', SoundEngine.init, { once: true });
+
 const butterflies = [];
 for(let i = 0; i < 8; i++) {
     butterflies.push({
@@ -540,7 +612,7 @@ function drawBees() {
             if (py > playerCY - 50 && py < playerCY + 30) { 
                 if (Math.abs(px - playerCX) < 40) { 
                     gameOver = true;
-                    if (audioCtx) audioCtx.suspend();
+                    SoundEngine.toggle(true); // Stop sounds on death
                 }
             }
             if (py >= playerCY + 30) {
@@ -573,7 +645,6 @@ function drawBees() {
         ctx.restore();
     }
 }
-
 function animate() {
     if (gameOver) {
         ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
