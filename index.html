@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta id="viewport" name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Kollecto</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏃</text></svg>">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏃</text></svg>">
     <style>
         body { 
             margin: 0; 
@@ -26,7 +26,6 @@
         h1 { margin: 0 0 5px 0; font-size: clamp(24px, 5vw, 32px); color: #f1c40f; }
         p { margin: 0 0 10px 0; font-size: clamp(14px, 4vw, 18px); }
         #scoreDisplay { font-size: 24px; font-weight: bold; color: #2ecc71; margin: 0; }
-        #audioStatus { font-size: 14px; color: #f39c12; margin-top: 5px; font-weight: bold; }
         #pauseBtn {
             position: absolute;
             top: 20px;
@@ -40,7 +39,6 @@
             cursor: pointer;
             pointer-events: auto;
         }
-
         #desktopOverlay {
             position: fixed;
             top: 0; left: 0; width: 100%; height: 100%;
@@ -118,6 +116,7 @@ let fruits = [];
 
 let isSimulatedDesktop = false;
 let lastDifficultyIncrease = Date.now();
+
 const SoundEngine = (() => {
     let actx;
     let initialized = false;
@@ -125,10 +124,18 @@ const SoundEngine = (() => {
     let noteIdx = 2;
 
     function init() {
-        if (initialized) return;
+        if (initialized) {
+            if (actx && actx.state === 'suspended') {
+                actx.resume();
+            }
+            return;
+        }
         actx = new (window.AudioContext || window.webkitAudioContext)();
+                if (actx.state === 'suspended') {
+            actx.resume();
+        }
+        
         initialized = true;
-        document.getElementById('audioStatus');
         startLoops();
     }
 
@@ -137,8 +144,9 @@ const SoundEngine = (() => {
         if (pauseAudio) actx.suspend();
         else actx.resume();
     }
+    
     function playTone(freq, type, duration, vol, slideToFreq) {
-        if (!actx || actx.state === 'suspended') return;
+        if (!actx || actx.state !== 'running') return;
         const osc = actx.createOscillator();
         const gain = actx.createGain();
         osc.type = type;
@@ -157,8 +165,9 @@ const SoundEngine = (() => {
         osc.start(actx.currentTime);
         osc.stop(actx.currentTime + duration);
     }
+
     function playInsectTone(baseFreq, modFreq, duration, vol) {
-        if (!actx || actx.state === 'suspended') return;
+        if (!actx || actx.state !== 'running') return;
         const osc = actx.createOscillator();
         const mod = actx.createOscillator();
         const modGain = actx.createGain();
@@ -229,7 +238,6 @@ const SoundEngine = (() => {
 
     return { init, toggle };
 })();
-// --- END SOUND ENGINE ---
 
 function checkDevice() {
     if (window.innerWidth < 768) {
@@ -299,7 +307,8 @@ window.addEventListener('touchstart', (e) => {
         if (lane < 1) lane++;
     }
 }, { passive: false });
-window.addEventListener('mousedown', SoundEngine.init, { once: true });
+
+window.addEventListener('mousedown', () => SoundEngine.init(), { once: true });
 
 const butterflies = [];
 for(let i = 0; i < 8; i++) {
