@@ -131,7 +131,8 @@ const SoundEngine = (() => {
             return;
         }
         actx = new (window.AudioContext || window.webkitAudioContext)();
-                if (actx.state === 'suspended') {
+        
+        if (actx.state === 'suspended') {
             actx.resume();
         }
         
@@ -353,15 +354,16 @@ const boy = {
         ctx.restore();
     }
 };
-
 const floraParticles = [];
-for(let i = 0; i < 120; i++) { 
+for(let i = 0; i < 500; i++) { 
+    let rand = Math.random();
+    let type = rand > 0.3 ? 3 : Math.floor(Math.random() * 3);
     floraParticles.push({
-        x: Math.random() * 3000 - 1500, 
+        x: Math.random() * 4000 - 2000, 
         z: Math.random(), 
-        type: Math.floor(Math.random() * 4), 
+        type: type, 
         seed: Math.random() * 10, 
-        color: `hsl(${90 + Math.random() * 40}, 60%, ${30 + Math.random() * 20}%)`,
+        color: `hsl(${100 + Math.random() * 40}, ${70 + Math.random() * 30}%, ${30 + Math.random() * 25}%)`,
         flowerColor: `hsl(${Math.random() * 360}, 80%, 70%)`
     });
 }
@@ -376,18 +378,25 @@ function drawBackground() {
 
     const horizon = height * 0.5;
     const meadowHue = 120 + Math.sin(timeHue * 0.02) * 35; 
-    const meadowSat = 45 + Math.sin(timeHue * 0.03) * 10;  
-    const meadowLight = 28 + Math.cos(timeHue * 0.02) * 8; 
-    
-    ctx.fillStyle = `hsl(${meadowHue + 10}, ${meadowSat - 10}%, ${meadowLight - 10}%)`;
+    const meadowSat = 55 + Math.sin(timeHue * 0.03) * 10;  
+    const meadowLight = 32 + Math.cos(timeHue * 0.02) * 8; 
+        ctx.fillStyle = `hsl(${meadowHue + 10}, ${meadowSat - 10}%, ${meadowLight - 10}%)`;
     ctx.beginPath();
     ctx.moveTo(0, horizon);
     ctx.quadraticCurveTo(width * 0.25, horizon - 40, width * 0.5, horizon);
     ctx.quadraticCurveTo(width * 0.75, horizon - 60, width, horizon);
     ctx.fill();
-
     ctx.fillStyle = `hsl(${meadowHue}, ${meadowSat}%, ${meadowLight}%)`;
     ctx.fillRect(0, horizon, width, height - horizon);
+    ctx.fillStyle = `rgba(0, 0, 0, 0.04)`;
+    for(let i = 0; i < 24; i++) {
+        if (i % 2 === 0) continue;
+        let z1 = i / 24;
+        let z2 = (i + 1) / 24;
+        let py1 = horizon + Math.pow(z1, 1.5) * (height - horizon);
+        let py2 = horizon + Math.pow(z2, 1.5) * (height - horizon);
+        ctx.fillRect(0, py1, width, py2 - py1);
+    }
 
     drawFlora(horizon);
 }
@@ -398,7 +407,7 @@ function drawFlora(horizon) {
 
     floraParticles.forEach(p => {
         if (!isPaused) p.z -= speed / 3000; 
-        if (p.z <= 0) { p.z = 1; p.x = Math.random() * 3000 - 1500; }
+        if (p.z <= 0) { p.z = 1; p.x = Math.random() * 4000 - 2000; }
 
         const perspective = 1 / (p.z + 0.1);
         const px = width / 2 + (p.x * perspective);
@@ -409,16 +418,17 @@ function drawFlora(horizon) {
 
         if (px > -100 && px < width + 100) {
             ctx.fillStyle = p.color;
+            ctx.strokeStyle = p.color;
+            ctx.lineCap = 'round';
+
             if (p.type === 0) { 
                 ctx.beginPath();
                 ctx.moveTo(px, py);
                 ctx.quadraticCurveTo(px + sway, py - size/1.5, px + sway * 1.5, py - size);
-                ctx.strokeStyle = p.color;
                 ctx.lineWidth = size / 10;
                 ctx.stroke();
             } 
             else if (p.type === 1) { 
-                ctx.fillStyle = p.color;
                 ctx.fillRect(px - 1, py - size/3, 2, size/3); 
                 ctx.fillStyle = p.flowerColor;
                 for(let j=0; j<3; j++) {
@@ -436,6 +446,17 @@ function drawFlora(horizon) {
                 ctx.beginPath();
                 ctx.arc(px, py - size/10, size/6, 0, Math.PI * 2);
                 ctx.fill();
+            }
+            else if (p.type === 3) {
+                ctx.lineWidth = size / 10;
+                ctx.beginPath();
+                ctx.moveTo(px, py);
+                ctx.quadraticCurveTo(px - size/4 + sway, py - size/2, px - size/2 + sway*1.5, py - size*0.8);
+                ctx.moveTo(px, py);
+                ctx.quadraticCurveTo(px + sway, py - size/1.5, px + sway*2, py - size*1.1);
+                ctx.moveTo(px, py);
+                ctx.quadraticCurveTo(px + size/4 + sway, py - size/2, px + size/2 + sway*1.5, py - size*0.7);
+                ctx.stroke();
             }
         }
     });
