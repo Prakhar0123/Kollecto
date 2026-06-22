@@ -38,7 +38,10 @@
             font-weight: bold;
             cursor: pointer;
             pointer-events: auto;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            transition: background 0.2s;
         }
+        #pauseBtn:hover { background: rgba(255, 215, 0, 1); }
         #desktopOverlay {
             position: fixed;
             top: 0; left: 0; width: 100%; height: 100%;
@@ -50,14 +53,14 @@
             backdrop-filter: blur(5px);
         }
         #popupContent {
-            background: #2c3e50;
+            background: linear-gradient(135deg, #2c3e50, #34495e);
             padding: 30px;
             border-radius: 15px;
             text-align: center;
             color: white;
             max-width: 80%;
             border: 2px solid #f1c40f;
-            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8);
         }
         .popup-btn {
             display: block;
@@ -69,7 +72,9 @@
             font-weight: bold;
             cursor: pointer;
             font-size: 16px;
+            transition: transform 0.1s;
         }
+        .popup-btn:active { transform: scale(0.98); }
         #btnDesktop { background: #f1c40f; color: #2c3e50; }
     </style>
 </head>
@@ -116,7 +121,6 @@ let fruits = [];
 
 let isSimulatedDesktop = false;
 let lastDifficultyIncrease = Date.now();
-
 const SoundEngine = (() => {
     let actx;
     let initialized = false;
@@ -125,17 +129,11 @@ const SoundEngine = (() => {
 
     function init() {
         if (initialized) {
-            if (actx && actx.state === 'suspended') {
-                actx.resume();
-            }
+            if (actx && actx.state === 'suspended') actx.resume();
             return;
         }
         actx = new (window.AudioContext || window.webkitAudioContext)();
-        
-        if (actx.state === 'suspended') {
-            actx.resume();
-        }
-        
+        if (actx.state === 'suspended') actx.resume();
         initialized = true;
         startLoops();
     }
@@ -151,16 +149,11 @@ const SoundEngine = (() => {
         const osc = actx.createOscillator();
         const gain = actx.createGain();
         osc.type = type;
-        
         osc.frequency.setValueAtTime(freq, actx.currentTime);
-        if (slideToFreq) {
-            osc.frequency.exponentialRampToValueAtTime(slideToFreq, actx.currentTime + duration);
-        }
-
+        if (slideToFreq) osc.frequency.exponentialRampToValueAtTime(slideToFreq, actx.currentTime + duration);
         gain.gain.setValueAtTime(0, actx.currentTime);
         gain.gain.linearRampToValueAtTime(vol, actx.currentTime + duration * 0.1);
         gain.gain.exponentialRampToValueAtTime(0.001, actx.currentTime + duration);
-
         osc.connect(gain);
         gain.connect(actx.destination);
         osc.start(actx.currentTime);
@@ -176,7 +169,6 @@ const SoundEngine = (() => {
 
         osc.type = 'sawtooth';
         osc.frequency.value = baseFreq;
-
         mod.type = 'square';
         mod.frequency.value = modFreq;
 
@@ -194,6 +186,11 @@ const SoundEngine = (() => {
         osc.stop(actx.currentTime + duration);
         mod.stop(actx.currentTime + duration);
     }
+    function playCollectSound() {
+        if (!actx || actx.state !== 'running') return;
+        playTone(600, 'sine', 0.1, 0.1, 1200);
+        setTimeout(() => playTone(1200, 'sine', 0.15, 0.1, 2400), 80);
+    }
 
     function startLoops() {
         setInterval(() => {
@@ -207,14 +204,11 @@ const SoundEngine = (() => {
         function nextBird() {
             if (actx.state === 'running' && !gameOver && !isPaused) {
                 const r = Math.random();
-                if (r < 0.33) {
-                    playTone(600, 'sine', 0.5, 0.08, 400);
-                } else if (r < 0.66) {
+                if (r < 0.33) playTone(600, 'sine', 0.5, 0.08, 400);
+                else if (r < 0.66) {
                     playTone(1800, 'sine', 0.2, 0.06, 900);
                     setTimeout(() => playTone(1800, 'sine', 0.2, 0.06, 900), 250);
-                } else {
-                    playTone(700, 'sine', 0.3, 0.08, 1400);
-                }
+                } else playTone(700, 'sine', 0.3, 0.08, 1400);
             }
             setTimeout(nextBird, 3000 + Math.random() * 5000);
         }
@@ -222,28 +216,20 @@ const SoundEngine = (() => {
         function nextInsect() {
             if (actx.state === 'running' && !gameOver && !isPaused) {
                 const r = Math.random();
-                if (r < 0.25) {
-                    playInsectTone(4500, 45, 1.0, 0.02);
-                } else if (r < 0.5) {
-                    playInsectTone(3500, 35, 0.8, 0.02);
-                } else if (r < 0.75) {
-                    playInsectTone(2500, 30, 1.2, 0.02);
-                } else {
-                    playInsectTone(5500, 50, 0.6, 0.02);
-                }
+                if (r < 0.25) playInsectTone(4500, 45, 1.0, 0.02);
+                else if (r < 0.5) playInsectTone(3500, 35, 0.8, 0.02);
+                else if (r < 0.75) playInsectTone(2500, 30, 1.2, 0.02);
+                else playInsectTone(5500, 50, 0.6, 0.02);
             }
             setTimeout(nextInsect, 2000 + Math.random() * 4000);
         }
         nextInsect();
     }
-
-    return { init, toggle };
+    
+    return { init, toggle, playCollectSound };
 })();
-
 function checkDevice() {
-    if (window.innerWidth < 768) {
-        overlay.style.display = 'flex';
-    }
+    if (window.innerWidth < 768) overlay.style.display = 'flex';
 }
 
 document.getElementById('btnDesktop').addEventListener('click', () => {
@@ -281,12 +267,10 @@ pauseBtn.addEventListener('click', (e) => {
 window.addEventListener('keydown', (e) => {
     SoundEngine.init();
     if (gameOver && e.key === 'Enter') location.reload();
-    
     if (e.code === 'Space') {
         e.preventDefault();
         togglePause();
     }
-
     if (!isPaused) {
         if (e.key === 'ArrowLeft' && lane > -1) lane--;
         if (e.key === 'ArrowRight' && lane < 1) lane++;
@@ -310,7 +294,6 @@ window.addEventListener('touchstart', (e) => {
 }, { passive: false });
 
 window.addEventListener('mousedown', () => SoundEngine.init(), { once: true });
-
 const butterflies = [];
 for(let i = 0; i < 8; i++) {
     butterflies.push({
@@ -320,7 +303,37 @@ for(let i = 0; i < 8; i++) {
         color: `hsl(${Math.random() * 60 + 10}, 100%, 70%)` 
     });
 }
+const floraParticles = [];
+for(let i = 0; i < 700; i++) { 
+    let rand = Math.random();
+    let type = rand > 0.3 ? 3 : Math.floor(Math.random() * 3);
+    let isPortrait = window.innerHeight > window.innerWidth;
+    let spread = isPortrait ? 1500 : 4000;
+    let zVal = Math.random();
+    let isFarBackground = isPortrait && i > 450; 
+    
+    if (isFarBackground) {
+        zVal = 0.6 + Math.random() * 0.4;
+    }
 
+    floraParticles.push({
+        x: Math.random() * spread - (spread / 2), 
+        z: zVal, 
+        type: type, 
+        seed: Math.random() * 10, 
+        color: `hsl(${100 + Math.random() * 40}, ${70 + Math.random() * 30}%, ${30 + Math.random() * 25}%)`,
+        flowerColor: `hsl(${Math.random() * 360}, 80%, 70%)`,
+        isFar: isFarBackground
+    });
+}const clouds = [];
+for(let i=0; i<5; i++) {
+    clouds.push({
+        x: Math.random() * window.innerWidth,
+        y: Math.random() * (window.innerHeight * 0.3),
+        size: 50 + Math.random() * 100,
+        speed: 0.1 + Math.random() * 0.3
+    });
+}
 const boy = {
     x: 0, y: 0, width: 30, height: 60,
     update() {
@@ -339,56 +352,71 @@ const boy = {
         const limbSwing = Math.sin(runCycle) * 15;   
 
         ctx.save();
+        ctx.fillStyle = `rgba(0, 0, 0, ${0.4 - (bob * 0.02)})`;
+        ctx.beginPath();
+        ctx.ellipse(cx, cy + 20, 25 - (bob*0.5), 8, 0, 0, Math.PI*2);
+        ctx.fill();
+
         ctx.translate(cx, cy - bob); 
-        ctx.lineWidth = 8; ctx.lineCap = 'round'; ctx.strokeStyle = '#2c1e14';
-        
+        ctx.lineWidth = 8; ctx.lineCap = 'round'; ctx.strokeStyle = '#1a120c';
         ctx.beginPath(); ctx.moveTo(-8, 0); ctx.lineTo(-12, 10 + limbSwing); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(8, 0); ctx.lineTo(12, 10 - limbSwing); ctx.stroke();
-        ctx.fillStyle = '#3498db'; ctx.fillRect(-15, -40, 30, 35);
-        ctx.strokeStyle = '#ffdbac'; ctx.lineWidth = 6;
+        let bodyGrad = ctx.createLinearGradient(-15, -40, 15, -5);
+        bodyGrad.addColorStop(0, '#5dade2');
+        bodyGrad.addColorStop(1, '#2874a6');
+        ctx.fillStyle = bodyGrad; 
+        ctx.fillRect(-15, -40, 30, 35);
+        ctx.strokeStyle = '#e0ac69'; ctx.lineWidth = 6;
         ctx.beginPath(); ctx.moveTo(15, -35); ctx.lineTo(20, -15 + limbSwing); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(-15, -35); ctx.lineTo(-20, -15 - limbSwing); ctx.stroke();
-        ctx.fillStyle = '#ffdbac'; ctx.beginPath(); ctx.arc(0, -52, 14, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = '#4b2c20'; ctx.beginPath(); ctx.arc(0, -56, 15, Math.PI, 0); ctx.fill();
+        let headGrad = ctx.createRadialGradient(-5, -55, 2, 0, -52, 14);
+        headGrad.addColorStop(0, '#ffdbac');
+        headGrad.addColorStop(1, '#c58c54');
+        ctx.fillStyle = headGrad; 
+        ctx.beginPath(); ctx.arc(0, -52, 14, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#2c1e14'; ctx.beginPath(); ctx.arc(0, -56, 15, Math.PI, 0); ctx.fill();
         ctx.fillRect(-15, -57, 30, 10); 
         ctx.restore();
     }
 };
-const floraParticles = [];
-for(let i = 0; i < 500; i++) { 
-    let rand = Math.random();
-    let type = rand > 0.3 ? 3 : Math.floor(Math.random() * 3);
-    floraParticles.push({
-        x: Math.random() * 4000 - 2000, 
-        z: Math.random(), 
-        type: type, 
-        seed: Math.random() * 10, 
-        color: `hsl(${100 + Math.random() * 40}, ${70 + Math.random() * 30}%, ${30 + Math.random() * 25}%)`,
-        flowerColor: `hsl(${Math.random() * 360}, 80%, 70%)`
-    });
-}
-
 function drawBackground() {
     timeHue += 0.05; 
-    const skyGrad = ctx.createLinearGradient(0, 0, 0, height);
-    skyGrad.addColorStop(0, `hsl(${timeHue}, 70%, 40%)`);
-    skyGrad.addColorStop(1, `hsl(${timeHue + 40}, 60%, 70%)`);
+    const skyGrad = ctx.createLinearGradient(0, 0, 0, height/2);
+    skyGrad.addColorStop(0, `hsl(${timeHue}, 70%, 30%)`);
+    skyGrad.addColorStop(0.6, `hsl(${timeHue + 20}, 60%, 60%)`);
+    skyGrad.addColorStop(1, `hsl(${timeHue + 40}, 50%, 80%)`);
     ctx.fillStyle = skyGrad;
     ctx.fillRect(0, 0, width, height);
+    const sunGrad = ctx.createRadialGradient(width/2, height/2, 10, width/2, height/2, 300);
+    sunGrad.addColorStop(0, 'rgba(255, 255, 255, 0.4)');
+    sunGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    ctx.fillStyle = sunGrad;
+    ctx.fillRect(0, 0, width, height/2);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+    clouds.forEach(c => {
+        if(!isPaused) c.x += c.speed;
+        if(c.x > width + c.size) c.x = -c.size;
+        ctx.beginPath();
+        ctx.ellipse(c.x, c.y, c.size, c.size/3, 0, 0, Math.PI*2);
+        ctx.fill();
+    });
 
     const horizon = height * 0.5;
     const meadowHue = 120 + Math.sin(timeHue * 0.02) * 35; 
     const meadowSat = 55 + Math.sin(timeHue * 0.03) * 10;  
     const meadowLight = 32 + Math.cos(timeHue * 0.02) * 8; 
-        ctx.fillStyle = `hsl(${meadowHue + 10}, ${meadowSat - 10}%, ${meadowLight - 10}%)`;
+    ctx.fillStyle = `hsl(${meadowHue + 10}, ${meadowSat - 10}%, ${meadowLight - 15}%)`;
     ctx.beginPath();
     ctx.moveTo(0, horizon);
-    ctx.quadraticCurveTo(width * 0.25, horizon - 40, width * 0.5, horizon);
-    ctx.quadraticCurveTo(width * 0.75, horizon - 60, width, horizon);
+    ctx.quadraticCurveTo(width * 0.25, horizon - 50, width * 0.5, horizon);
+    ctx.quadraticCurveTo(width * 0.75, horizon - 70, width, horizon);
     ctx.fill();
-    ctx.fillStyle = `hsl(${meadowHue}, ${meadowSat}%, ${meadowLight}%)`;
+    const groundGrad = ctx.createLinearGradient(0, horizon, 0, height);
+    groundGrad.addColorStop(0, `hsl(${meadowHue}, ${meadowSat-20}%, ${meadowLight+10}%)`);
+    groundGrad.addColorStop(1, `hsl(${meadowHue}, ${meadowSat}%, ${meadowLight-10}%)`);
+    ctx.fillStyle = groundGrad;
     ctx.fillRect(0, horizon, width, height - horizon);
-    ctx.fillStyle = `rgba(0, 0, 0, 0.04)`;
+    ctx.fillStyle = `rgba(0, 0, 0, 0.06)`;
     for(let i = 0; i < 24; i++) {
         if (i % 2 === 0) continue;
         let z1 = i / 24;
@@ -400,14 +428,24 @@ function drawBackground() {
 
     drawFlora(horizon);
 }
-
 function drawFlora(horizon) {
     const wind = Math.sin(frame * 0.02) * 10 + Math.sin(frame * 0.05) * 5;
+    const isPortrait = height > width;
+
     floraParticles.sort((a, b) => b.z - a.z);
 
     floraParticles.forEach(p => {
+        if (p.isFar && !isPortrait) return;
+
         if (!isPaused) p.z -= speed / 3000; 
-        if (p.z <= 0) { p.z = 1; p.x = Math.random() * 4000 - 2000; }
+        let minZ = (p.isFar && isPortrait) ? 0.6 : 0;
+
+        if (p.z <= minZ) { 
+            p.z = 1; 
+            let spread = isPortrait ? 1500 : 4000;
+            p.x = Math.random() * spread - (spread / 2); 
+        }
+        ctx.globalAlpha = Math.min(1, p.z * 4);
 
         const perspective = 1 / (p.z + 0.1);
         const px = width / 2 + (p.x * perspective);
@@ -438,7 +476,7 @@ function drawFlora(horizon) {
                 }
             }
             else if (p.type === 2) { 
-                ctx.fillStyle = `rgba(0,0,0,0.15)`; 
+                ctx.fillStyle = `rgba(0,0,0,0.2)`; 
                 ctx.beginPath();
                 ctx.ellipse(px, py, size/4, size/10, 0, 0, Math.PI*2);
                 ctx.fill();
@@ -459,7 +497,37 @@ function drawFlora(horizon) {
                 ctx.stroke();
             }
         }
+        ctx.globalAlpha = 1.0;
     });
+}function drawPath() {
+    const horizon = height * 0.5;
+    const pathWidthBase = width < 600 ? width * 0.45 : 400;
+    const pathGrad = ctx.createLinearGradient(0, horizon, 0, height);
+    pathGrad.addColorStop(0, '#5a4634');
+    pathGrad.addColorStop(1, '#2c1e14');
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(width / 2 - 50, horizon);
+    ctx.lineTo(width / 2 + 50, horizon);
+    ctx.lineTo(width / 2 + pathWidthBase, height);
+    ctx.lineTo(width / 2 - pathWidthBase, height);
+    ctx.closePath();
+    ctx.fillStyle = pathGrad;
+    ctx.fill();
+    for (let i = 0; i < 60; i++) {
+        let z = ( (frame * speed + i * 40) % 1000) / 1000;
+        let py = horizon + z * (height - horizon);
+        let pW = 100 + z * (pathWidthBase * 2 - 100);
+        let px = (width / 2 - pW / 2) + ((Math.sin(i) * 0.5 + 0.5) * pW);
+        
+        ctx.globalAlpha = z * 1.5; // Fade at horizon
+        ctx.fillStyle = `rgba(155, 89, 182, ${z})`;
+        ctx.beginPath(); ctx.arc(px, py, z * 8, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = `rgba(241, 196, 15, ${z})`;
+        ctx.beginPath(); ctx.arc(px, py, z * 2, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
 }
 
 function drawButterflies() {
@@ -470,6 +538,7 @@ function drawButterflies() {
         if (!isPaused) b.z -= speed / 2500;
         if (b.z <= 0) { b.z = 1; b.x = Math.random() * 1600 - 800; }
 
+        ctx.globalAlpha = Math.min(1, b.z * 4);
         const perspective = 1 / (b.z + 0.1);
         const bSize = (1 - b.z) * 20; 
         const flightX = Math.sin(frame * 0.1 + b.offset) * 100;
@@ -489,32 +558,7 @@ function drawButterflies() {
             ctx.fillRect(px - 1, py - bSize/4, 2, bSize/2);
         }
     });
-}
-
-function drawPath() {
-    const horizon = height * 0.5;
-    const pathWidthBase = width < 600 ? width * 0.45 : 400;
-    ctx.save();
-    ctx.beginPath();
-    ctx.moveTo(width / 2 - 50, horizon);
-    ctx.lineTo(width / 2 + 50, horizon);
-    ctx.lineTo(width / 2 + pathWidthBase, height);
-    ctx.lineTo(width / 2 - pathWidthBase, height);
-    ctx.closePath();
-    ctx.fillStyle = '#4a3728';
-    ctx.fill();
-
-    for (let i = 0; i < 60; i++) {
-        let z = ( (frame * speed + i * 40) % 1000) / 1000;
-        let py = horizon + z * (height - horizon);
-        let pW = 100 + z * (pathWidthBase * 2 - 100);
-        let px = (width / 2 - pW / 2) + ((Math.sin(i) * 0.5 + 0.5) * pW);
-        ctx.fillStyle = `rgba(155, 89, 182, ${z})`;
-        ctx.beginPath(); ctx.arc(px, py, z * 8, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = `rgba(241, 196, 15, ${z})`;
-        ctx.beginPath(); ctx.arc(px, py, z * 2, 0, Math.PI * 2); ctx.fill();
-    }
-    ctx.restore();
+    ctx.globalAlpha = 1.0;
 }
 
 function drawFruits() {
@@ -543,20 +587,42 @@ function drawFruits() {
         let px = width / 2 + (f.lane * laneSpacing * f.z);
         let py = horizon + f.z * (height - horizon);
         let fSize = 5 + f.z * 35;
+        
         if (py > playerCY - 50 && py < playerCY + 30) {
             if (Math.abs(px - playerCX) < 45) {
                 score += 50; 
                 scoreDisplay.innerText = `Score: ${score}`;
+                SoundEngine.playCollectSound();
                 fruits.splice(i, 1);
                 continue;
             }
         }
+        
         ctx.save();
+        ctx.globalAlpha = Math.min(1, f.z * 3);
+        ctx.fillStyle = `rgba(0, 0, 0, ${0.4 * f.z})`;
+        ctx.beginPath();
+        ctx.ellipse(px, py, fSize * 0.8, fSize * 0.3, 0, 0, Math.PI*2);
+        ctx.fill();
+
         ctx.translate(px, py - fSize);
-        ctx.fillStyle = f.type === 'apple' ? '#e74c3c' : '#f39c12';
+        let fruitGrad = ctx.createRadialGradient(-fSize/4, -fSize/4, fSize/10, 0, 0, fSize);
+        if (f.type === 'apple') {
+            fruitGrad.addColorStop(0, '#ff9999');
+            fruitGrad.addColorStop(0.3, '#e74c3c');
+            fruitGrad.addColorStop(1, '#900000');
+        } else {
+            fruitGrad.addColorStop(0, '#ffdf80');
+            fruitGrad.addColorStop(0.3, '#f39c12');
+            fruitGrad.addColorStop(1, '#a64b00');
+        }
+
+        ctx.fillStyle = fruitGrad;
         ctx.beginPath();
         ctx.arc(0, 0, fSize, 0, Math.PI * 2);
         ctx.fill();
+        
+        // Stem
         ctx.fillStyle = '#27ae60';
         ctx.fillRect(-2, -fSize - 2, 4, fSize/2);
         ctx.restore();
@@ -627,31 +693,45 @@ function drawBees() {
         }
 
         ctx.save();
-        ctx.translate(px, py - (bSize * 1.5)); 
-        let wobble = Math.sin(frame * 0.2 + bee.offset) * (bee.z * 15);
-        ctx.translate(wobble, Math.cos(frame * 0.3) * 5); 
+        ctx.globalAlpha = Math.min(1, bee.z * 3);
+        ctx.fillStyle = `rgba(0, 0, 0, ${0.3 * bee.z})`;
+        ctx.beginPath();
+        ctx.ellipse(px, py, bSize * 1.2, bSize * 0.4, 0, 0, Math.PI*2);
+        ctx.fill();
 
-        ctx.fillStyle = (bee.targetLane !== null || bee.switchProgress > 0) ? '#e67e22' : '#f1c40f';
+        let wobble = Math.sin(frame * 0.2 + bee.offset) * (bee.z * 15);
+        ctx.translate(px + wobble, py - (bSize * 1.5) + Math.cos(frame * 0.3) * 5); 
+        let baseColor = (bee.targetLane !== null || bee.switchProgress > 0) ? '#e67e22' : '#f1c40f';
+        let bodyGrad = ctx.createRadialGradient(-bSize/3, -bSize/3, bSize/5, 0, 0, bSize);
+        bodyGrad.addColorStop(0, '#fff');
+        bodyGrad.addColorStop(0.2, baseColor);
+        bodyGrad.addColorStop(1, '#8a6e00');
         
+        ctx.fillStyle = bodyGrad;
         ctx.beginPath(); ctx.ellipse(0, 0, bSize, bSize * 0.8, 0, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = '#000';
-        ctx.fillRect(-bSize * 0.4, -bSize * 0.8, bSize * 0.25, bSize * 1.6);
-        ctx.fillRect(bSize * 0.15, -bSize * 0.8, bSize * 0.25, bSize * 1.6);
-        
+        ctx.fillStyle = '#111';
+        ctx.beginPath();
+        ctx.ellipse(-bSize * 0.2, 0, bSize * 0.15, bSize * 0.78, 0, 0, Math.PI*2);
+        ctx.ellipse(bSize * 0.2, 0, bSize * 0.15, bSize * 0.78, 0, 0, Math.PI*2);
+        ctx.fill();
         ctx.fillStyle = (bee.targetLane !== null) ? '#ff0000' : '#e74c3c'; 
         ctx.beginPath(); ctx.arc(-bSize*0.3, bSize*0.2, bSize*0.2, 0, Math.PI*2); ctx.fill();
         ctx.beginPath(); ctx.arc(bSize*0.3, bSize*0.2, bSize*0.2, 0, Math.PI*2); ctx.fill();
-        
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+        ctx.strokeStyle = 'rgba(200, 200, 255, 0.8)';
+        ctx.lineWidth = 1;
         let wingFlap = Math.abs(Math.sin(frame * 1.5)) * bSize;
-        ctx.beginPath(); ctx.ellipse(-bSize*0.8, -bSize*0.5, bSize*0.6, wingFlap, Math.PI/6, 0, Math.PI*2); ctx.fill();
-        ctx.beginPath(); ctx.ellipse(bSize*0.8, -bSize*0.5, bSize*0.6, wingFlap, -Math.PI/6, 0, Math.PI*2); ctx.fill();
+        
+        ctx.beginPath(); ctx.ellipse(-bSize*0.8, -bSize*0.5, bSize*0.6, wingFlap, Math.PI/6, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+        ctx.beginPath(); ctx.ellipse(bSize*0.8, -bSize*0.5, bSize*0.6, wingFlap, -Math.PI/6, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+        
         ctx.restore();
     }
 }
+
 function animate() {
     if (gameOver) {
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
         ctx.fillRect(0, 0, width, height);
         ctx.fillStyle = '#e74c3c';
         ctx.font = 'bold 40px "Segoe UI", sans-serif';
@@ -666,7 +746,7 @@ function animate() {
     }
 
     if (isPaused) {
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
         ctx.fillRect(0, 0, width, height);
         ctx.fillStyle = '#f1c40f';
         ctx.font = 'bold 50px "Segoe UI", sans-serif';
@@ -695,6 +775,7 @@ function animate() {
     drawFruits();
     drawBees();        
     drawButterflies(); 
+    
     requestAnimationFrame(animate);
 }
 
