@@ -228,6 +228,7 @@ const SoundEngine = (() => {
     
     return { init, toggle, playCollectSound };
 })();
+
 function checkDevice() {
     if (window.innerWidth < 768) overlay.style.display = 'flex';
 }
@@ -294,6 +295,7 @@ window.addEventListener('touchstart', (e) => {
 }, { passive: false });
 
 window.addEventListener('mousedown', () => SoundEngine.init(), { once: true });
+
 const butterflies = [];
 for(let i = 0; i < 8; i++) {
     butterflies.push({
@@ -303,6 +305,7 @@ for(let i = 0; i < 8; i++) {
         color: `hsl(${Math.random() * 60 + 10}, 100%, 70%)` 
     });
 }
+
 const floraParticles = [];
 for(let i = 0; i < 700; i++) { 
     let rand = Math.random();
@@ -325,15 +328,21 @@ for(let i = 0; i < 700; i++) {
         flowerColor: `hsl(${Math.random() * 360}, 80%, 70%)`,
         isFar: isFarBackground
     });
-}const clouds = [];
-for(let i=0; i<5; i++) {
+}
+
+const clouds = [];
+const skyWidth = 1600;
+for(let i = 0; i < 10; i++) {
+    let depth = Math.random();
     clouds.push({
-        x: Math.random() * window.innerWidth,
-        y: Math.random() * (window.innerHeight * 0.3),
-        size: 50 + Math.random() * 100,
-        speed: 0.1 + Math.random() * 0.3
+        x: Math.random() * skyWidth,
+        y: Math.random() * (window.innerHeight * 0.35),
+        size: 40 + (depth * 80),
+        speed: 0.1 + (depth * 0.2),
+        opacity: 0.1 + (depth * 0.3)
     });
 }
+
 const boy = {
     x: 0, y: 0, width: 30, height: 60,
     update() {
@@ -379,6 +388,7 @@ const boy = {
         ctx.restore();
     }
 };
+
 function drawBackground() {
     timeHue += 0.05; 
     const skyGrad = ctx.createLinearGradient(0, 0, 0, height/2);
@@ -392,13 +402,18 @@ function drawBackground() {
     sunGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
     ctx.fillStyle = sunGrad;
     ctx.fillRect(0, 0, width, height/2);
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
     clouds.forEach(c => {
         if(!isPaused) c.x += c.speed;
-        if(c.x > width + c.size) c.x = -c.size;
-        ctx.beginPath();
-        ctx.ellipse(c.x, c.y, c.size, c.size/3, 0, 0, Math.PI*2);
-        ctx.fill();
+        if(c.x > skyWidth + c.size) {
+            c.x = -c.size;
+            c.y = Math.random() * (height * 0.35);
+        }
+        if (c.x > -c.size && c.x < width + c.size) {
+            ctx.fillStyle = `rgba(255, 255, 255, ${c.opacity})`;
+            ctx.beginPath();
+            ctx.ellipse(c.x, c.y, c.size, c.size/3, 0, 0, Math.PI*2);
+            ctx.fill();
+        }
     });
 
     const horizon = height * 0.5;
@@ -428,6 +443,7 @@ function drawBackground() {
 
     drawFlora(horizon);
 }
+
 function drawFlora(horizon) {
     const wind = Math.sin(frame * 0.02) * 10 + Math.sin(frame * 0.05) * 5;
     const isPortrait = height > width;
@@ -499,7 +515,9 @@ function drawFlora(horizon) {
         }
         ctx.globalAlpha = 1.0;
     });
-}function drawPath() {
+}
+
+function drawPath() {
     const horizon = height * 0.5;
     const pathWidthBase = width < 600 ? width * 0.45 : 400;
     const pathGrad = ctx.createLinearGradient(0, horizon, 0, height);
@@ -521,7 +539,7 @@ function drawFlora(horizon) {
         let pW = 100 + z * (pathWidthBase * 2 - 100);
         let px = (width / 2 - pW / 2) + ((Math.sin(i) * 0.5 + 0.5) * pW);
         
-        ctx.globalAlpha = z * 1.5; // Fade at horizon
+        ctx.globalAlpha = z * 1.5;
         ctx.fillStyle = `rgba(155, 89, 182, ${z})`;
         ctx.beginPath(); ctx.arc(px, py, z * 8, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = `rgba(241, 196, 15, ${z})`;
@@ -621,8 +639,6 @@ function drawFruits() {
         ctx.beginPath();
         ctx.arc(0, 0, fSize, 0, Math.PI * 2);
         ctx.fill();
-        
-        // Stem
         ctx.fillStyle = '#27ae60';
         ctx.fillRect(-2, -fSize - 2, 4, fSize/2);
         ctx.restore();
