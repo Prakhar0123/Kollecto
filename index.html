@@ -121,10 +121,6 @@ let fruits = [];
 
 let isSimulatedDesktop = false;
 let lastDifficultyIncrease = Date.now();
-
-// Cached Gradients to prevent memory leaks/lag
-let boyBodyGrad, boyHeadGrad, pathGrad;
-
 const SoundEngine = (() => {
     let actx;
     let initialized = false;
@@ -190,7 +186,6 @@ const SoundEngine = (() => {
         osc.stop(actx.currentTime + duration);
         mod.stop(actx.currentTime + duration);
     }
-    
     function playCollectSound() {
         if (!actx || actx.state !== 'running') return;
         playTone(600, 'sine', 0.1, 0.1, 1200);
@@ -233,7 +228,6 @@ const SoundEngine = (() => {
     
     return { init, toggle, playCollectSound };
 })();
-
 function checkDevice() {
     if (window.innerWidth < 768) overlay.style.display = 'flex';
 }
@@ -252,22 +246,7 @@ checkDevice();
 function resize() {
     width = canvas.width = window.innerWidth;
     height = canvas.height = window.innerHeight;
-    
-    // Cache gradients that depend on screen size
-    const horizon = height * 0.5;
-    pathGrad = ctx.createLinearGradient(0, horizon, 0, height);
-    pathGrad.addColorStop(0, '#5a4634');
-    pathGrad.addColorStop(1, '#2c1e14');
-
-    // Cache static player gradients
-    boyBodyGrad = ctx.createLinearGradient(-15, -40, 15, -5);
-    boyBodyGrad.addColorStop(0, '#5dade2');
-    boyBodyGrad.addColorStop(1, '#2874a6');
-    boyHeadGrad = ctx.createRadialGradient(-5, -55, 2, 0, -52, 14);
-    boyHeadGrad.addColorStop(0, '#ffdbac');
-    boyHeadGrad.addColorStop(1, '#c58c54');
 }
-
 window.addEventListener('resize', resize);
 resize();
 
@@ -315,7 +294,6 @@ window.addEventListener('touchstart', (e) => {
 }, { passive: false });
 
 window.addEventListener('mousedown', () => SoundEngine.init(), { once: true });
-
 const butterflies = [];
 for(let i = 0; i < 8; i++) {
     butterflies.push({
@@ -325,16 +303,14 @@ for(let i = 0; i < 8; i++) {
         color: `hsl(${Math.random() * 60 + 10}, 100%, 70%)` 
     });
 }
-
-// Optimization: Reduced to 250 items (from 700) to vastly reduce path drawing overhead
 const floraParticles = [];
-for(let i = 0; i < 250; i++) { 
+for(let i = 0; i < 700; i++) { 
     let rand = Math.random();
     let type = rand > 0.3 ? 3 : Math.floor(Math.random() * 3);
     let isPortrait = window.innerHeight > window.innerWidth;
     let spread = isPortrait ? 1500 : 4000;
     let zVal = Math.random();
-    let isFarBackground = isPortrait && i > 150; 
+    let isFarBackground = isPortrait && i > 450; 
     
     if (isFarBackground) {
         zVal = 0.6 + Math.random() * 0.4;
@@ -349,11 +325,7 @@ for(let i = 0; i < 250; i++) {
         flowerColor: `hsl(${Math.random() * 360}, 80%, 70%)`,
         isFar: isFarBackground
     });
-}
-// One-time initialization sort (removes the need to sort 60 times a second)
-floraParticles.sort((a, b) => b.z - a.z);
-
-const clouds = [];
+}const clouds = [];
 for(let i=0; i<5; i++) {
     clouds.push({
         x: Math.random() * window.innerWidth,
@@ -362,7 +334,6 @@ for(let i=0; i<5; i++) {
         speed: 0.1 + Math.random() * 0.3
     });
 }
-
 const boy = {
     x: 0, y: 0, width: 30, height: 60,
     update() {
@@ -388,34 +359,39 @@ const boy = {
 
         ctx.translate(cx, cy - bob); 
         ctx.lineWidth = 8; ctx.lineCap = 'round'; ctx.strokeStyle = '#1a120c';
-        
         ctx.beginPath(); ctx.moveTo(-8, 0); ctx.lineTo(-12, 10 + limbSwing); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(8, 0); ctx.lineTo(12, 10 - limbSwing); ctx.stroke();
-        
-        // Use pre-cached gradient
-        ctx.fillStyle = boyBodyGrad; 
+        let bodyGrad = ctx.createLinearGradient(-15, -40, 15, -5);
+        bodyGrad.addColorStop(0, '#5dade2');
+        bodyGrad.addColorStop(1, '#2874a6');
+        ctx.fillStyle = bodyGrad; 
         ctx.fillRect(-15, -40, 30, 35);
-        
         ctx.strokeStyle = '#e0ac69'; ctx.lineWidth = 6;
         ctx.beginPath(); ctx.moveTo(15, -35); ctx.lineTo(20, -15 + limbSwing); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(-15, -35); ctx.lineTo(-20, -15 - limbSwing); ctx.stroke();
-        
-        // Use pre-cached gradient
-        ctx.fillStyle = boyHeadGrad; 
+        let headGrad = ctx.createRadialGradient(-5, -55, 2, 0, -52, 14);
+        headGrad.addColorStop(0, '#ffdbac');
+        headGrad.addColorStop(1, '#c58c54');
+        ctx.fillStyle = headGrad; 
         ctx.beginPath(); ctx.arc(0, -52, 14, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = '#2c1e14'; ctx.beginPath(); ctx.arc(0, -56, 15, Math.PI, 0); ctx.fill();
         ctx.fillRect(-15, -57, 30, 10); 
         ctx.restore();
     }
 };
-
 function drawBackground() {
     timeHue += 0.05; 
-    
-    // Simplified sky logic (solid block mapping colors)
-    ctx.fillStyle = `hsl(${timeHue + 20}, 60%, 50%)`;
+    const skyGrad = ctx.createLinearGradient(0, 0, 0, height/2);
+    skyGrad.addColorStop(0, `hsl(${timeHue}, 70%, 30%)`);
+    skyGrad.addColorStop(0.6, `hsl(${timeHue + 20}, 60%, 60%)`);
+    skyGrad.addColorStop(1, `hsl(${timeHue + 40}, 50%, 80%)`);
+    ctx.fillStyle = skyGrad;
+    ctx.fillRect(0, 0, width, height);
+    const sunGrad = ctx.createRadialGradient(width/2, height/2, 10, width/2, height/2, 300);
+    sunGrad.addColorStop(0, 'rgba(255, 255, 255, 0.4)');
+    sunGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    ctx.fillStyle = sunGrad;
     ctx.fillRect(0, 0, width, height/2);
-
     ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
     clouds.forEach(c => {
         if(!isPaused) c.x += c.speed;
@@ -429,17 +405,22 @@ function drawBackground() {
     const meadowHue = 120 + Math.sin(timeHue * 0.02) * 35; 
     const meadowSat = 55 + Math.sin(timeHue * 0.03) * 10;  
     const meadowLight = 32 + Math.cos(timeHue * 0.02) * 8; 
-    
-    // Simplified ground drawing
-    ctx.fillStyle = `hsl(${meadowHue}, ${meadowSat}%, ${meadowLight}%)`;
+    ctx.fillStyle = `hsl(${meadowHue + 10}, ${meadowSat - 10}%, ${meadowLight - 15}%)`;
+    ctx.beginPath();
+    ctx.moveTo(0, horizon);
+    ctx.quadraticCurveTo(width * 0.25, horizon - 50, width * 0.5, horizon);
+    ctx.quadraticCurveTo(width * 0.75, horizon - 70, width, horizon);
+    ctx.fill();
+    const groundGrad = ctx.createLinearGradient(0, horizon, 0, height);
+    groundGrad.addColorStop(0, `hsl(${meadowHue}, ${meadowSat-20}%, ${meadowLight+10}%)`);
+    groundGrad.addColorStop(1, `hsl(${meadowHue}, ${meadowSat}%, ${meadowLight-10}%)`);
+    ctx.fillStyle = groundGrad;
     ctx.fillRect(0, horizon, width, height - horizon);
-    
-    // Optimization: Halved the overdraw stripes loop
     ctx.fillStyle = `rgba(0, 0, 0, 0.06)`;
-    for(let i = 0; i < 12; i++) {
+    for(let i = 0; i < 24; i++) {
         if (i % 2 === 0) continue;
-        let z1 = i / 12;
-        let z2 = (i + 1) / 12;
+        let z1 = i / 24;
+        let z2 = (i + 1) / 24;
         let py1 = horizon + Math.pow(z1, 1.5) * (height - horizon);
         let py2 = horizon + Math.pow(z2, 1.5) * (height - horizon);
         ctx.fillRect(0, py1, width, py2 - py1);
@@ -447,12 +428,11 @@ function drawBackground() {
 
     drawFlora(horizon);
 }
-
 function drawFlora(horizon) {
     const wind = Math.sin(frame * 0.02) * 10 + Math.sin(frame * 0.05) * 5;
     const isPortrait = height > width;
 
-    // Notice: floraParticles.sort() removed here to prevent major lag.
+    floraParticles.sort((a, b) => b.z - a.z);
 
     floraParticles.forEach(p => {
         if (p.isFar && !isPortrait) return;
@@ -465,12 +445,13 @@ function drawFlora(horizon) {
             let spread = isPortrait ? 1500 : 4000;
             p.x = Math.random() * spread - (spread / 2); 
         }
-        
         ctx.globalAlpha = Math.min(1, p.z * 4);
+
         const perspective = 1 / (p.z + 0.1);
         const px = width / 2 + (p.x * perspective);
         const py = horizon + ( (1 - p.z) * (height - horizon) );
         const size = (1 - p.z) * 80;
+        
         const sway = (Math.sin(frame * 0.05 + p.seed) * (size * 0.2)) + (wind * perspective * 0.2);
 
         if (px > -100 && px < width + 100) {
@@ -518,12 +499,13 @@ function drawFlora(horizon) {
         }
         ctx.globalAlpha = 1.0;
     });
-}
-
-function drawPath() {
+}function drawPath() {
     const horizon = height * 0.5;
     const pathWidthBase = width < 600 ? width * 0.45 : 400;
-    
+    const pathGrad = ctx.createLinearGradient(0, horizon, 0, height);
+    pathGrad.addColorStop(0, '#5a4634');
+    pathGrad.addColorStop(1, '#2c1e14');
+
     ctx.save();
     ctx.beginPath();
     ctx.moveTo(width / 2 - 50, horizon);
@@ -531,18 +513,15 @@ function drawPath() {
     ctx.lineTo(width / 2 + pathWidthBase, height);
     ctx.lineTo(width / 2 - pathWidthBase, height);
     ctx.closePath();
-    
-    ctx.fillStyle = pathGrad; // Used cached gradient
+    ctx.fillStyle = pathGrad;
     ctx.fill();
-    
-    // Optimization: Reduced path loop from 60 to 25 items
-    for (let i = 0; i < 25; i++) {
-        let z = ( (frame * speed + i * 40 * 2.4) % 1000) / 1000;
+    for (let i = 0; i < 60; i++) {
+        let z = ( (frame * speed + i * 40) % 1000) / 1000;
         let py = horizon + z * (height - horizon);
         let pW = 100 + z * (pathWidthBase * 2 - 100);
-        let px = (width / 2 - pW / 2) + ((Math.sin(i * 2.4) * 0.5 + 0.5) * pW);
+        let px = (width / 2 - pW / 2) + ((Math.sin(i) * 0.5 + 0.5) * pW);
         
-        ctx.globalAlpha = z * 1.5; 
+        ctx.globalAlpha = z * 1.5; // Fade at horizon
         ctx.fillStyle = `rgba(155, 89, 182, ${z})`;
         ctx.beginPath(); ctx.arc(px, py, z * 8, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = `rgba(241, 196, 15, ${z})`;
@@ -553,6 +532,8 @@ function drawPath() {
 
 function drawButterflies() {
     const horizon = height * 0.5;
+    butterflies.sort((a, b) => b.z - a.z);
+
     butterflies.forEach(b => {
         if (!isPaused) b.z -= speed / 2500;
         if (b.z <= 0) { b.z = 1; b.x = Math.random() * 1600 - 800; }
@@ -625,17 +606,20 @@ function drawFruits() {
         ctx.fill();
 
         ctx.translate(px, py - fSize);
-        
-        // Optimization: Swapped expensive radial gradients for vector solid colors
-        ctx.fillStyle = f.type === 'apple' ? '#e74c3c' : '#f39c12';
+        let fruitGrad = ctx.createRadialGradient(-fSize/4, -fSize/4, fSize/10, 0, 0, fSize);
+        if (f.type === 'apple') {
+            fruitGrad.addColorStop(0, '#ff9999');
+            fruitGrad.addColorStop(0.3, '#e74c3c');
+            fruitGrad.addColorStop(1, '#900000');
+        } else {
+            fruitGrad.addColorStop(0, '#ffdf80');
+            fruitGrad.addColorStop(0.3, '#f39c12');
+            fruitGrad.addColorStop(1, '#a64b00');
+        }
+
+        ctx.fillStyle = fruitGrad;
         ctx.beginPath();
         ctx.arc(0, 0, fSize, 0, Math.PI * 2);
-        ctx.fill();
-        
-        // Vector highlight to mimic 3D depth
-        ctx.fillStyle = 'rgba(255,255,255,0.2)';
-        ctx.beginPath();
-        ctx.arc(-fSize/4, -fSize/4, fSize/2, 0, Math.PI * 2);
         ctx.fill();
         
         // Stem
@@ -665,6 +649,7 @@ function drawBees() {
             let possibleLanes = [-1, 0, 1].filter(l => l !== newBee.lane);
             newBee.targetLane = possibleLanes[Math.floor(Math.random() * possibleLanes.length)];
         }
+        
         bees.push(newBee);
     }
 
@@ -716,22 +701,22 @@ function drawBees() {
 
         let wobble = Math.sin(frame * 0.2 + bee.offset) * (bee.z * 15);
         ctx.translate(px + wobble, py - (bSize * 1.5) + Math.cos(frame * 0.3) * 5); 
-        
-        // Optimization: Removed gradient processing on bees, using solid colored base and highlight
         let baseColor = (bee.targetLane !== null || bee.switchProgress > 0) ? '#e67e22' : '#f1c40f';
-        ctx.fillStyle = baseColor;
-        ctx.beginPath(); ctx.ellipse(0, 0, bSize, bSize * 0.8, 0, 0, Math.PI * 2); ctx.fill();
+        let bodyGrad = ctx.createRadialGradient(-bSize/3, -bSize/3, bSize/5, 0, 0, bSize);
+        bodyGrad.addColorStop(0, '#fff');
+        bodyGrad.addColorStop(0.2, baseColor);
+        bodyGrad.addColorStop(1, '#8a6e00');
         
+        ctx.fillStyle = bodyGrad;
+        ctx.beginPath(); ctx.ellipse(0, 0, bSize, bSize * 0.8, 0, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = '#111';
         ctx.beginPath();
         ctx.ellipse(-bSize * 0.2, 0, bSize * 0.15, bSize * 0.78, 0, 0, Math.PI*2);
         ctx.ellipse(bSize * 0.2, 0, bSize * 0.15, bSize * 0.78, 0, 0, Math.PI*2);
         ctx.fill();
-        
         ctx.fillStyle = (bee.targetLane !== null) ? '#ff0000' : '#e74c3c'; 
         ctx.beginPath(); ctx.arc(-bSize*0.3, bSize*0.2, bSize*0.2, 0, Math.PI*2); ctx.fill();
         ctx.beginPath(); ctx.arc(bSize*0.3, bSize*0.2, bSize*0.2, 0, Math.PI*2); ctx.fill();
-        
         ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
         ctx.strokeStyle = 'rgba(200, 200, 255, 0.8)';
         ctx.lineWidth = 1;
@@ -783,7 +768,6 @@ function animate() {
 
     ctx.clearRect(0, 0, width, height);
     frame++;
-    
     drawBackground(); 
     drawPath();        
     boy.update();
