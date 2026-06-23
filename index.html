@@ -121,6 +121,45 @@ let fruits = [];
 
 let isSimulatedDesktop = false;
 let lastDifficultyIncrease = Date.now();
+
+// --- Static Graphic Optimizations ---
+let boyBodyGrad, boyHeadGrad;
+let appleGradNormal, orangeGradNormal, beeGradNormal, beeGradSwitch;
+let sunGrad, pathGrad;
+let meadowStripsCanvas, meadowCtx;
+
+function initStaticGradients() {
+    boyBodyGrad = ctx.createLinearGradient(-15, -40, 15, -5);
+    boyBodyGrad.addColorStop(0, '#5dade2');
+    boyBodyGrad.addColorStop(1, '#2874a6');
+    
+    boyHeadGrad = ctx.createRadialGradient(-5, -55, 2, 0, -52, 14);
+    boyHeadGrad.addColorStop(0, '#ffdbac');
+    boyHeadGrad.addColorStop(1, '#c58c54');
+
+    // Normalized gradients (radius 1) to be scaled dynamically via ctx.scale
+    appleGradNormal = ctx.createRadialGradient(-0.25, -0.25, 0.1, 0, 0, 1);
+    appleGradNormal.addColorStop(0, '#ff9999');
+    appleGradNormal.addColorStop(0.3, '#e74c3c');
+    appleGradNormal.addColorStop(1, '#900000');
+
+    orangeGradNormal = ctx.createRadialGradient(-0.25, -0.25, 0.1, 0, 0, 1);
+    orangeGradNormal.addColorStop(0, '#ffdf80');
+    orangeGradNormal.addColorStop(0.3, '#f39c12');
+    orangeGradNormal.addColorStop(1, '#a64b00');
+
+    beeGradNormal = ctx.createRadialGradient(-0.33, -0.33, 0.2, 0, 0, 1);
+    beeGradNormal.addColorStop(0, '#fff');
+    beeGradNormal.addColorStop(0.2, '#f1c40f');
+    beeGradNormal.addColorStop(1, '#8a6e00');
+
+    beeGradSwitch = ctx.createRadialGradient(-0.33, -0.33, 0.2, 0, 0, 1);
+    beeGradSwitch.addColorStop(0, '#fff');
+    beeGradSwitch.addColorStop(0.2, '#e67e22');
+    beeGradSwitch.addColorStop(1, '#8a6e00');
+}
+initStaticGradients();
+
 const SoundEngine = (() => {
     let actx;
     let initialized = false;
@@ -228,6 +267,7 @@ const SoundEngine = (() => {
     
     return { init, toggle, playCollectSound };
 })();
+
 function checkDevice() {
     if (window.innerWidth < 768) overlay.style.display = 'flex';
 }
@@ -246,6 +286,31 @@ checkDevice();
 function resize() {
     width = canvas.width = window.innerWidth;
     height = canvas.height = window.innerHeight;
+    
+    // Recalculate static full-screen elements
+    sunGrad = ctx.createRadialGradient(width/2, height/2, 10, width/2, height/2, 300);
+    sunGrad.addColorStop(0, 'rgba(255, 255, 255, 0.4)');
+    sunGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    
+    const horizon = height * 0.5;
+    pathGrad = ctx.createLinearGradient(0, horizon, 0, height);
+    pathGrad.addColorStop(0, '#5a4634');
+    pathGrad.addColorStop(1, '#2c1e14');
+
+    // Pre-render the meadow strips to avoid massive per-frame GPU overdraw
+    meadowStripsCanvas = document.createElement('canvas');
+    meadowStripsCanvas.width = width;
+    meadowStripsCanvas.height = height;
+    meadowCtx = meadowStripsCanvas.getContext('2d');
+    meadowCtx.fillStyle = `rgba(0, 0, 0, 0.06)`;
+    for(let i = 0; i < 24; i++) {
+        if (i % 2 === 0) continue;
+        let z1 = i / 24;
+        let z2 = (i + 1) / 24;
+        let py1 = horizon + (z1 * Math.sqrt(z1)) * (height - horizon);
+        let py2 = horizon + (z2 * Math.sqrt(z2)) * (height - horizon);
+        meadowCtx.fillRect(0, py1, width, py2 - py1);
+    }
 }
 window.addEventListener('resize', resize);
 resize();
@@ -294,6 +359,7 @@ window.addEventListener('touchstart', (e) => {
 }, { passive: false });
 
 window.addEventListener('mousedown', () => SoundEngine.init(), { once: true });
+
 const butterflies = [];
 for(let i = 0; i < 8; i++) {
     butterflies.push({
@@ -303,6 +369,8 @@ for(let i = 0; i < 8; i++) {
         color: `hsl(${Math.random() * 60 + 10}, 100%, 70%)` 
     });
 }
+butterflies.sort((a, b) => b.z - a.z); // Sort ONCE
+
 const floraParticles = [];
 for(let i = 0; i < 700; i++) { 
     let rand = Math.random();
@@ -312,9 +380,7 @@ for(let i = 0; i < 700; i++) {
     let zVal = Math.random();
     let isFarBackground = isPortrait && i > 450; 
     
-    if (isFarBackground) {
-        zVal = 0.6 + Math.random() * 0.4;
-    }
+    if (isFarBackground) zVal = 0.6 + Math.random() * 0.4;
 
     floraParticles.push({
         x: Math.random() * spread - (spread / 2), 
@@ -325,7 +391,10 @@ for(let i = 0; i < 700; i++) {
         flowerColor: `hsl(${Math.random() * 360}, 80%, 70%)`,
         isFar: isFarBackground
     });
-}const clouds = [];
+}
+floraParticles.sort((a, b) => b.z - a.z); // Sort ONCE
+
+const clouds = [];
 for(let i=0; i<5; i++) {
     clouds.push({
         x: Math.random() * window.innerWidth,
@@ -334,6 +403,7 @@ for(let i=0; i<5; i++) {
         speed: 0.1 + Math.random() * 0.3
     });
 }
+
 const boy = {
     x: 0, y: 0, width: 30, height: 60,
     update() {
@@ -361,24 +431,21 @@ const boy = {
         ctx.lineWidth = 8; ctx.lineCap = 'round'; ctx.strokeStyle = '#1a120c';
         ctx.beginPath(); ctx.moveTo(-8, 0); ctx.lineTo(-12, 10 + limbSwing); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(8, 0); ctx.lineTo(12, 10 - limbSwing); ctx.stroke();
-        let bodyGrad = ctx.createLinearGradient(-15, -40, 15, -5);
-        bodyGrad.addColorStop(0, '#5dade2');
-        bodyGrad.addColorStop(1, '#2874a6');
-        ctx.fillStyle = bodyGrad; 
+        
+        ctx.fillStyle = boyBodyGrad; 
         ctx.fillRect(-15, -40, 30, 35);
         ctx.strokeStyle = '#e0ac69'; ctx.lineWidth = 6;
         ctx.beginPath(); ctx.moveTo(15, -35); ctx.lineTo(20, -15 + limbSwing); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(-15, -35); ctx.lineTo(-20, -15 - limbSwing); ctx.stroke();
-        let headGrad = ctx.createRadialGradient(-5, -55, 2, 0, -52, 14);
-        headGrad.addColorStop(0, '#ffdbac');
-        headGrad.addColorStop(1, '#c58c54');
-        ctx.fillStyle = headGrad; 
+        
+        ctx.fillStyle = boyHeadGrad; 
         ctx.beginPath(); ctx.arc(0, -52, 14, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = '#2c1e14'; ctx.beginPath(); ctx.arc(0, -56, 15, Math.PI, 0); ctx.fill();
         ctx.fillRect(-15, -57, 30, 10); 
         ctx.restore();
     }
 };
+
 function drawBackground() {
     timeHue += 0.05; 
     const skyGrad = ctx.createLinearGradient(0, 0, 0, height/2);
@@ -387,9 +454,7 @@ function drawBackground() {
     skyGrad.addColorStop(1, `hsl(${timeHue + 40}, 50%, 80%)`);
     ctx.fillStyle = skyGrad;
     ctx.fillRect(0, 0, width, height);
-    const sunGrad = ctx.createRadialGradient(width/2, height/2, 10, width/2, height/2, 300);
-    sunGrad.addColorStop(0, 'rgba(255, 255, 255, 0.4)');
-    sunGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    
     ctx.fillStyle = sunGrad;
     ctx.fillRect(0, 0, width, height/2);
     ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
@@ -416,45 +481,45 @@ function drawBackground() {
     groundGrad.addColorStop(1, `hsl(${meadowHue}, ${meadowSat}%, ${meadowLight-10}%)`);
     ctx.fillStyle = groundGrad;
     ctx.fillRect(0, horizon, width, height - horizon);
-    ctx.fillStyle = `rgba(0, 0, 0, 0.06)`;
-    for(let i = 0; i < 24; i++) {
-        if (i % 2 === 0) continue;
-        let z1 = i / 24;
-        let z2 = (i + 1) / 24;
-        let py1 = horizon + Math.pow(z1, 1.5) * (height - horizon);
-        let py2 = horizon + Math.pow(z2, 1.5) * (height - horizon);
-        ctx.fillRect(0, py1, width, py2 - py1);
-    }
+    
+    ctx.drawImage(meadowStripsCanvas, 0, 0);
 
     drawFlora(horizon);
 }
+
 function drawFlora(horizon) {
     const wind = Math.sin(frame * 0.02) * 10 + Math.sin(frame * 0.05) * 5;
     const isPortrait = height > width;
 
-    floraParticles.sort((a, b) => b.z - a.z);
-
-    floraParticles.forEach(p => {
-        if (p.isFar && !isPortrait) return;
-
-        if (!isPaused) p.z -= speed / 3000; 
+    // Pass 1: Safely manage array wrapping backwards to maintain Strict Z-sorting
+    let wrapped = [];
+    for (let i = floraParticles.length - 1; i >= 0; i--) {
+        let p = floraParticles[i];
+        if (!isPaused) p.z -= speed / 3000;
         let minZ = (p.isFar && isPortrait) ? 0.6 : 0;
-
-        if (p.z <= minZ) { 
-            p.z = 1; 
+        if (p.z <= minZ) {
+            p.z = 1;
             let spread = isPortrait ? 1500 : 4000;
-            p.x = Math.random() * spread - (spread / 2); 
+            p.x = Math.random() * spread - (spread / 2);
+            wrapped.push(floraParticles.splice(i, 1)[0]);
         }
-        ctx.globalAlpha = Math.min(1, p.z * 4);
+    }
+    if (wrapped.length > 0) floraParticles.unshift(...wrapped);
 
+    // Pass 2: Draw perfectly sorted list back to front
+    for (let i = 0; i < floraParticles.length; i++) {
+        let p = floraParticles[i];
+        if (p.isFar && !isPortrait) continue;
+        
         const perspective = 1 / (p.z + 0.1);
         const px = width / 2 + (p.x * perspective);
-        const py = horizon + ( (1 - p.z) * (height - horizon) );
-        const size = (1 - p.z) * 80;
         
-        const sway = (Math.sin(frame * 0.05 + p.seed) * (size * 0.2)) + (wind * perspective * 0.2);
-
         if (px > -100 && px < width + 100) {
+            const py = horizon + ( (1 - p.z) * (height - horizon) );
+            const size = (1 - p.z) * 80;
+            const sway = (Math.sin(frame * 0.05 + p.seed) * (size * 0.2)) + (wind * perspective * 0.2);
+
+            ctx.globalAlpha = Math.min(1, p.z * 4);
             ctx.fillStyle = p.color;
             ctx.strokeStyle = p.color;
             ctx.lineCap = 'round';
@@ -465,8 +530,7 @@ function drawFlora(horizon) {
                 ctx.quadraticCurveTo(px + sway, py - size/1.5, px + sway * 1.5, py - size);
                 ctx.lineWidth = size / 10;
                 ctx.stroke();
-            } 
-            else if (p.type === 1) { 
+            } else if (p.type === 1) { 
                 ctx.fillRect(px - 1, py - size/3, 2, size/3); 
                 ctx.fillStyle = p.flowerColor;
                 for(let j=0; j<3; j++) {
@@ -474,8 +538,7 @@ function drawFlora(horizon) {
                     ctx.arc(px + Math.cos(j*2) * (size/8) + (sway/2), (py - size/3) + Math.sin(j*2) * (size/8), size/8, 0, Math.PI*2);
                     ctx.fill();
                 }
-            }
-            else if (p.type === 2) { 
+            } else if (p.type === 2) { 
                 ctx.fillStyle = `rgba(0,0,0,0.2)`; 
                 ctx.beginPath();
                 ctx.ellipse(px, py, size/4, size/10, 0, 0, Math.PI*2);
@@ -484,8 +547,7 @@ function drawFlora(horizon) {
                 ctx.beginPath();
                 ctx.arc(px, py - size/10, size/6, 0, Math.PI * 2);
                 ctx.fill();
-            }
-            else if (p.type === 3) {
+            } else if (p.type === 3) {
                 ctx.lineWidth = size / 10;
                 ctx.beginPath();
                 ctx.moveTo(px, py);
@@ -497,14 +559,13 @@ function drawFlora(horizon) {
                 ctx.stroke();
             }
         }
-        ctx.globalAlpha = 1.0;
-    });
-}function drawPath() {
+    }
+    ctx.globalAlpha = 1.0;
+}
+
+function drawPath() {
     const horizon = height * 0.5;
     const pathWidthBase = width < 600 ? width * 0.45 : 400;
-    const pathGrad = ctx.createLinearGradient(0, horizon, 0, height);
-    pathGrad.addColorStop(0, '#5a4634');
-    pathGrad.addColorStop(1, '#2c1e14');
 
     ctx.save();
     ctx.beginPath();
@@ -515,29 +576,49 @@ function drawFlora(horizon) {
     ctx.closePath();
     ctx.fillStyle = pathGrad;
     ctx.fill();
+    
+    // Batch path points to minimize context string parsing
+    let pts = [];
     for (let i = 0; i < 60; i++) {
         let z = ( (frame * speed + i * 40) % 1000) / 1000;
         let py = horizon + z * (height - horizon);
         let pW = 100 + z * (pathWidthBase * 2 - 100);
         let px = (width / 2 - pW / 2) + ((Math.sin(i) * 0.5 + 0.5) * pW);
-        
-        ctx.globalAlpha = z * 1.5; // Fade at horizon
-        ctx.fillStyle = `rgba(155, 89, 182, ${z})`;
-        ctx.beginPath(); ctx.arc(px, py, z * 8, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = `rgba(241, 196, 15, ${z})`;
-        ctx.beginPath(); ctx.arc(px, py, z * 2, 0, Math.PI * 2); ctx.fill();
+        pts.push({x: px, y: py, z: z});
     }
+
+    ctx.fillStyle = '#9b59b6';
+    pts.forEach(p => {
+        ctx.globalAlpha = p.z * 1.5;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.z * 8, 0, Math.PI * 2); ctx.fill();
+    });
+
+    ctx.fillStyle = '#f1c40f';
+    pts.forEach(p => {
+        ctx.globalAlpha = p.z * 1.5;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.z * 2, 0, Math.PI * 2); ctx.fill();
+    });
+    
     ctx.restore();
 }
 
 function drawButterflies() {
     const horizon = height * 0.5;
-    butterflies.sort((a, b) => b.z - a.z);
-
-    butterflies.forEach(b => {
+    
+    // Z-wrapping without sorting
+    let bWrapped = [];
+    for (let i = butterflies.length - 1; i >= 0; i--) {
+        let b = butterflies[i];
         if (!isPaused) b.z -= speed / 2500;
-        if (b.z <= 0) { b.z = 1; b.x = Math.random() * 1600 - 800; }
+        if (b.z <= 0) { 
+            b.z = 1; b.x = Math.random() * 1600 - 800; 
+            bWrapped.push(butterflies.splice(i, 1)[0]);
+        }
+    }
+    if (bWrapped.length > 0) butterflies.unshift(...bWrapped);
 
+    for (let i = 0; i < butterflies.length; i++) {
+        let b = butterflies[i];
         ctx.globalAlpha = Math.min(1, b.z * 4);
         const perspective = 1 / (b.z + 0.1);
         const bSize = (1 - b.z) * 20; 
@@ -557,7 +638,7 @@ function drawButterflies() {
             ctx.fillStyle = '#000';
             ctx.fillRect(px - 1, py - bSize/4, 2, bSize/2);
         }
-    });
+    }
     ctx.globalAlpha = 1.0;
 }
 
@@ -606,23 +687,13 @@ function drawFruits() {
         ctx.fill();
 
         ctx.translate(px, py - fSize);
-        let fruitGrad = ctx.createRadialGradient(-fSize/4, -fSize/4, fSize/10, 0, 0, fSize);
-        if (f.type === 'apple') {
-            fruitGrad.addColorStop(0, '#ff9999');
-            fruitGrad.addColorStop(0.3, '#e74c3c');
-            fruitGrad.addColorStop(1, '#900000');
-        } else {
-            fruitGrad.addColorStop(0, '#ffdf80');
-            fruitGrad.addColorStop(0.3, '#f39c12');
-            fruitGrad.addColorStop(1, '#a64b00');
-        }
-
-        ctx.fillStyle = fruitGrad;
-        ctx.beginPath();
-        ctx.arc(0, 0, fSize, 0, Math.PI * 2);
-        ctx.fill();
         
-        // Stem
+        ctx.save();
+        ctx.scale(fSize, fSize);
+        ctx.fillStyle = f.type === 'apple' ? appleGradNormal : orangeGradNormal;
+        ctx.beginPath(); ctx.arc(0, 0, 1, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+        
         ctx.fillStyle = '#27ae60';
         ctx.fillRect(-2, -fSize - 2, 4, fSize/2);
         ctx.restore();
@@ -701,29 +772,31 @@ function drawBees() {
 
         let wobble = Math.sin(frame * 0.2 + bee.offset) * (bee.z * 15);
         ctx.translate(px + wobble, py - (bSize * 1.5) + Math.cos(frame * 0.3) * 5); 
-        let baseColor = (bee.targetLane !== null || bee.switchProgress > 0) ? '#e67e22' : '#f1c40f';
-        let bodyGrad = ctx.createRadialGradient(-bSize/3, -bSize/3, bSize/5, 0, 0, bSize);
-        bodyGrad.addColorStop(0, '#fff');
-        bodyGrad.addColorStop(0.2, baseColor);
-        bodyGrad.addColorStop(1, '#8a6e00');
         
-        ctx.fillStyle = bodyGrad;
-        ctx.beginPath(); ctx.ellipse(0, 0, bSize, bSize * 0.8, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.save();
+        ctx.scale(bSize, bSize);
+        let baseGrad = (bee.targetLane !== null || bee.switchProgress > 0) ? beeGradSwitch : beeGradNormal;
+        ctx.fillStyle = baseGrad;
+        ctx.beginPath(); ctx.ellipse(0, 0, 1, 0.8, 0, 0, Math.PI * 2); ctx.fill();
+        
         ctx.fillStyle = '#111';
         ctx.beginPath();
-        ctx.ellipse(-bSize * 0.2, 0, bSize * 0.15, bSize * 0.78, 0, 0, Math.PI*2);
-        ctx.ellipse(bSize * 0.2, 0, bSize * 0.15, bSize * 0.78, 0, 0, Math.PI*2);
+        ctx.ellipse(-0.2, 0, 0.15, 0.78, 0, 0, Math.PI*2);
+        ctx.ellipse(0.2, 0, 0.15, 0.78, 0, 0, Math.PI*2);
         ctx.fill();
+        
         ctx.fillStyle = (bee.targetLane !== null) ? '#ff0000' : '#e74c3c'; 
-        ctx.beginPath(); ctx.arc(-bSize*0.3, bSize*0.2, bSize*0.2, 0, Math.PI*2); ctx.fill();
-        ctx.beginPath(); ctx.arc(bSize*0.3, bSize*0.2, bSize*0.2, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(-0.3, 0.2, 0.2, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(0.3, 0.2, 0.2, 0, Math.PI*2); ctx.fill();
+        
         ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
         ctx.strokeStyle = 'rgba(200, 200, 255, 0.8)';
-        ctx.lineWidth = 1;
-        let wingFlap = Math.abs(Math.sin(frame * 1.5)) * bSize;
+        ctx.lineWidth = 1 / bSize;
+        let wingFlap = Math.abs(Math.sin(frame * 1.5));
         
-        ctx.beginPath(); ctx.ellipse(-bSize*0.8, -bSize*0.5, bSize*0.6, wingFlap, Math.PI/6, 0, Math.PI*2); ctx.fill(); ctx.stroke();
-        ctx.beginPath(); ctx.ellipse(bSize*0.8, -bSize*0.5, bSize*0.6, wingFlap, -Math.PI/6, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+        ctx.beginPath(); ctx.ellipse(-0.8, -0.5, 0.6, wingFlap, Math.PI/6, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+        ctx.beginPath(); ctx.ellipse(0.8, -0.5, 0.6, wingFlap, -Math.PI/6, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+        ctx.restore();
         
         ctx.restore();
     }
