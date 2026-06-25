@@ -104,8 +104,8 @@ const scoreDisplay = document.getElementById('scoreDisplay');
 const overlay = document.getElementById('desktopOverlay');
 const viewportMeta = document.getElementById('viewport');
 const pauseBtn = document.getElementById('pauseBtn');
-
 let width, height;
+let horizon, playerCY, laneSpacing; 
 let frame = 0;
 let lane = 0; 
 let targetX = 0;
@@ -121,6 +121,7 @@ let fruits = [];
 
 let isSimulatedDesktop = false;
 let lastDifficultyIncrease = Date.now();
+
 const SoundEngine = (() => {
     let actx;
     let initialized = false;
@@ -243,10 +244,12 @@ document.getElementById('btnDesktop').addEventListener('click', () => {
 });
 
 checkDevice();
-
 function resize() {
     width = canvas.width = window.innerWidth;
     height = canvas.height = window.innerHeight;
+    horizon = height > width ? height * 0.75 : height * 0.5;
+    playerCY = horizon + (height - horizon) * 0.8;
+    laneSpacing = width < 600 ? width * 0.25 : 150;
 }
 window.addEventListener('resize', resize);
 resize();
@@ -332,30 +335,31 @@ for(let i = 0; i < 700; i++) {
 
 const clouds = [];
 const skyWidth = 1600;
+function resetCloud(c, isInit = false) {
+    c.yFactor = Math.random();
+    c.size = 15 + ((1 - c.yFactor) * 85);
+    c.speed = 0.05 + ((1 - c.yFactor) * 0.2);
+    c.opacity = 0.1 + ((1 - c.yFactor) * 0.4);
+    if (isInit) c.x = Math.random() * skyWidth;
+    else c.x = -c.size;
+}
+
 for(let i = 0; i < 10; i++) {
-    let depth = Math.random();
-    clouds.push({
-        x: Math.random() * skyWidth,
-        y: Math.random() * (window.innerHeight * 0.35),
-        size: 40 + (depth * 80),
-        speed: 0.1 + (depth * 0.2),
-        opacity: 0.1 + (depth * 0.3)
-    });
+    let c = {};
+    resetCloud(c, true);
+    clouds.push(c);
 }
 
 const boy = {
     x: 0, y: 0, width: 30, height: 60,
     update() {
-        const horizon = height * 0.5;
-        const playerY = height - 150;
-        const playerZ = (playerY - horizon) / (height - horizon);
-        const laneSpacing = width < 600 ? width * 0.25 : 150;
+        const playerZ = (playerCY - horizon) / (height - horizon);
         targetX = lane * laneSpacing * playerZ;
         currentX += (targetX - currentX) * 0.15;
     },
     draw() {
         const cx = width / 2 + currentX;
-        const cy = height - 150;
+        const cy = playerCY;
         const runCycle = frame * 0.2;
         const bob = Math.abs(Math.cos(runCycle)) * 10; 
         const limbSwing = Math.sin(runCycle) * 15;   
@@ -391,32 +395,34 @@ const boy = {
 
 function drawBackground() {
     timeHue += 0.05; 
-    const skyGrad = ctx.createLinearGradient(0, 0, 0, height/2);
+    const skyGrad = ctx.createLinearGradient(0, 0, 0, horizon);
     skyGrad.addColorStop(0, `hsl(${timeHue}, 70%, 30%)`);
     skyGrad.addColorStop(0.6, `hsl(${timeHue + 20}, 60%, 60%)`);
     skyGrad.addColorStop(1, `hsl(${timeHue + 40}, 50%, 80%)`);
     ctx.fillStyle = skyGrad;
-    ctx.fillRect(0, 0, width, height);
-    const sunGrad = ctx.createRadialGradient(width/2, height/2, 10, width/2, height/2, 300);
+    ctx.fillRect(0, 0, width, horizon);
+    
+    const sunGrad = ctx.createRadialGradient(width/2, horizon, 10, width/2, horizon, 300);
     sunGrad.addColorStop(0, 'rgba(255, 255, 255, 0.4)');
     sunGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
     ctx.fillStyle = sunGrad;
-    ctx.fillRect(0, 0, width, height/2);
+    ctx.fillRect(0, 0, width, horizon);
     clouds.forEach(c => {
         if(!isPaused) c.x += c.speed;
+        
         if(c.x > skyWidth + c.size) {
-            c.x = -c.size;
-            c.y = Math.random() * (height * 0.35);
+            resetCloud(c, false);
         }
+        let currentY = c.yFactor * (horizon * 0.9); 
+        
         if (c.x > -c.size && c.x < width + c.size) {
             ctx.fillStyle = `rgba(255, 255, 255, ${c.opacity})`;
             ctx.beginPath();
-            ctx.ellipse(c.x, c.y, c.size, c.size/3, 0, 0, Math.PI*2);
+            ctx.ellipse(c.x, currentY, c.size, c.size/3, 0, 0, Math.PI*2);
             ctx.fill();
         }
     });
 
-    const horizon = height * 0.5;
     const meadowHue = 120 + Math.sin(timeHue * 0.02) * 35; 
     const meadowSat = 55 + Math.sin(timeHue * 0.03) * 10;  
     const meadowLight = 32 + Math.cos(timeHue * 0.02) * 8; 
@@ -441,10 +447,10 @@ function drawBackground() {
         ctx.fillRect(0, py1, width, py2 - py1);
     }
 
-    drawFlora(horizon);
+    drawFlora();
 }
 
-function drawFlora(horizon) {
+function drawFlora() {
     const wind = Math.sin(frame * 0.02) * 10 + Math.sin(frame * 0.05) * 5;
     const isPortrait = height > width;
 
@@ -518,7 +524,6 @@ function drawFlora(horizon) {
 }
 
 function drawPath() {
-    const horizon = height * 0.5;
     const pathWidthBase = width < 600 ? width * 0.45 : 400;
     const pathGrad = ctx.createLinearGradient(0, horizon, 0, height);
     pathGrad.addColorStop(0, '#5a4634');
@@ -549,7 +554,6 @@ function drawPath() {
 }
 
 function drawButterflies() {
-    const horizon = height * 0.5;
     butterflies.sort((a, b) => b.z - a.z);
 
     butterflies.forEach(b => {
@@ -580,10 +584,7 @@ function drawButterflies() {
 }
 
 function drawFruits() {
-    const horizon = height * 0.5;
     const playerCX = width / 2 + currentX;
-    const playerCY = height - 150;
-    const laneSpacing = width < 600 ? width * 0.25 : 150;
     
     if (!isPaused && frame % 90 === 0) {
         fruits.push({
@@ -646,10 +647,7 @@ function drawFruits() {
 }
 
 function drawBees() {
-    const horizon = height * 0.5;
     const playerCX = width / 2 + currentX;
-    const playerCY = height - 150;
-    const laneSpacing = width < 600 ? width * 0.25 : 150;
 
     if (!isPaused && frame % 40 === 0) {
         let newBee = {
@@ -794,7 +792,6 @@ function animate() {
     
     requestAnimationFrame(animate);
 }
-
 animate();
 </script>
 </body>
